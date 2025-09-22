@@ -3,43 +3,56 @@ import 'package:flutter/material.dart';
 class RegisterRider extends StatelessWidget {
   const RegisterRider({super.key});
 
+  static const kYellow = Color(0xFFFEE600);
+  static const kGrey = Color(0xFF5B5B5B);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       appBar: AppBar(
         toolbarHeight: 120,
-        backgroundColor: Colors.transparent, // ทำให้ AppBar โปร่งใส
-        elevation: 0, // ลบเงาของ AppBar
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+          splashRadius: 22,
+        ),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFFFEE600),
+            color: kYellow,
             borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(30), // ปรับมุมโค้งมนที่ขอบซ้าย
-              bottomRight: Radius.circular(30), // ปรับมุมโค้งมนที่ขอบขวา
+              bottomLeft: Radius.circular(30),
+              bottomRight: Radius.circular(30),
             ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 8),
               const Text(
                 'สมัครสมาชิก',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 24,
+                  color: Colors.black,
                 ),
               ),
               const SizedBox(height: 20),
-              // User/Rider Toggle Bar
+              // Toggle ผู้ใช้ระบบ/ไรเดอร์ (ดีไซน์เดิม)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          // TODO: ถ้ามีหน้า Register ของ "ผู้ใช้ระบบ" ให้ Navigator.pushReplacement ไปหน้านั้น
+                        },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+                          backgroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
                           ),
@@ -47,10 +60,7 @@ class RegisterRider extends StatelessWidget {
                         ),
                         child: const Text(
                           'ผู้ใช้ระบบ',
-                          style: TextStyle(
-                            color: Color.fromARGB(255, 0, 0, 0),
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(color: Colors.black, fontSize: 16),
                         ),
                       ),
                     ),
@@ -62,16 +72,13 @@ class RegisterRider extends StatelessWidget {
                           backgroundColor: const Color(0xFF5B5B5B),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
-                            side: const BorderSide(color: Color.fromARGB(255, 255, 255, 255)),
+                            side: const BorderSide(color: Colors.white),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
                         child: const Text(
                           'ไรเดอร์',
-                          style: TextStyle(
-                            color: Color.fromARGB(255, 255, 255, 255),
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 16),
                         ),
                       ),
                     ),
@@ -82,18 +89,19 @@ class RegisterRider extends StatelessWidget {
           ),
         ),
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           children: [
-            // Profile Picture Section
+            // รูปโปรไฟล์
             Stack(
               alignment: Alignment.bottomRight,
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(60.0), // Rounded corners for the image
+                  borderRadius: BorderRadius.circular(60.0),
                   child: Image.network(
-                    'https://static.wixstatic.com/media/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp/v1/fill/w_740,h_444,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp', // URL from the internet
+                    'https://static.wixstatic.com/media/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp/v1/fill/w_740,h_444,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp',
                     width: 120,
                     height: 120,
                     fit: BoxFit.cover,
@@ -112,41 +120,34 @@ class RegisterRider extends StatelessWidget {
                     color: Colors.green,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.add,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 20),
                 ),
               ],
             ),
             const SizedBox(height: 30),
 
-            // Form Fields
-            _buildTextField(
-                hintText: 'ชื่อ-สกุล', icon: Icons.person_outline),
+            // ฟอร์ม
+            _buildTextField(hintText: 'ชื่อ-สกุล', icon: Icons.person_outline),
             const SizedBox(height: 16),
-            _buildTextField(
-                hintText: 'อีเมล', icon: Icons.mail_outline), // Corrected icon for email
+            _buildTextField(hintText: 'อีเมล', icon: Icons.mail_outline),
             const SizedBox(height: 16),
-            _buildTextField(
-                hintText: 'หมายเลขโทรศัพท์', icon: Icons.phone_outlined), // Added phone icon
+            _buildTextField(hintText: 'หมายเลขโทรศัพท์', icon: Icons.phone_outlined),
             const SizedBox(height: 16),
-            _buildTextField(
-                hintText: 'ทะเบียนรถ', icon: Icons.directions_car_outlined), // Added car icon for registration
+            _buildTextField(hintText: 'ทะเบียนรถ', icon: Icons.directions_car_outlined),
             const SizedBox(height: 16),
-            _buildPasswordField(
-                hintText: 'Password', icon: Icons.lock_outline),
+            _buildPasswordField(hintText: 'Password', icon: Icons.lock_outline),
             const SizedBox(height: 16),
 
-
-            // Register Button
+            // ปุ่มสมัครสมาชิก
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  // TODO: ต่อ backend สมัครสมาชิก
+                  Navigator.pop(context); // สมัครเสร็จ -> กลับหน้า LoginRider
+                },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFEE600),
+                  backgroundColor: kYellow,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10.0),
                   ),
@@ -168,25 +169,27 @@ class RegisterRider extends StatelessWidget {
     );
   }
 
+  // ---------- Widgets ย่อย ----------
+
   Widget _buildTextField({required String hintText, IconData? icon}) {
     return TextFormField(
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF5B5B5B)) : null,
+        hintStyle: const TextStyle(color: kGrey),
+        prefixIcon: icon != null ? Icon(icon, color: kGrey) : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0), // Added yellow border
+          borderSide: const BorderSide(color: kYellow, width: 2.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0), // Added yellow border
+          borderSide: const BorderSide(color: kYellow, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0), // Added yellow border
+          borderSide: const BorderSide(color: kYellow, width: 2.0),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),
@@ -198,22 +201,22 @@ class RegisterRider extends StatelessWidget {
       obscureText: true,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF5B5B5B)) : null,
-        suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF5B5B5B)),
+        hintStyle: const TextStyle(color: kGrey),
+        prefixIcon: icon != null ? Icon(icon, color: kGrey) : null,
+        suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: kGrey),
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0), // Added yellow border
+          borderSide: const BorderSide(color: kYellow, width: 2.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0), // Added yellow border
+          borderSide: const BorderSide(color: kYellow, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0), // Added yellow border
+          borderSide: const BorderSide(color: kYellow, width: 2.0),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),

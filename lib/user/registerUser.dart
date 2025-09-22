@@ -46,7 +46,7 @@ class RegisterUser extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
                         child: const Text(
-                          'ผู้ใช้งานระบบ',
+                          'ผู้ใช้ระบบ',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,

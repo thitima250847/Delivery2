@@ -1,10 +1,161 @@
+import 'dart:typed_data';
+import 'package:delivery/user/registerUser.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-class RegisterRider extends StatelessWidget {
+class RegisterRider extends StatefulWidget {
   const RegisterRider({super.key});
 
   static const kYellow = Color(0xFFFEE600);
   static const kGrey = Color(0xFF5B5B5B);
+
+  @override
+  State<RegisterRider> createState() => _RegisterRiderState();
+}
+
+class _RegisterRiderState extends State<RegisterRider> {
+  // controllers
+  final _nameCtl = TextEditingController();
+  final _emailCtl = TextEditingController();
+  final _phoneCtl = TextEditingController();
+  final _plateCtl = TextEditingController();
+  final _passwordCtl = TextEditingController();
+
+  // image state
+  final _picker = ImagePicker();
+  Uint8List? _imageBytes; // preview
+  String? _uploadedImageUrl; // storage url
+
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _nameCtl.dispose();
+    _emailCtl.dispose();
+    _phoneCtl.dispose();
+    _plateCtl.dispose();
+    _passwordCtl.dispose();
+    super.dispose();
+  }
+
+  // ----- pick image (UI ไม่เปลี่ยน แค่เพิ่ม onTap) -----
+  Future<void> _pickImage() async {
+    try {
+      final XFile? x = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 75,
+      );
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      setState(() => _imageBytes = bytes);
+    } catch (e) {
+      _showSnack('เลือกรูปไม่สำเร็จ: $e');
+    }
+  }
+
+  // ----- upload to Storage: rider_vehicles/<uid>.jpg -----
+  Future<String?> _uploadVehicleImage(String uid) async {
+    if (_imageBytes == null) return null;
+    try {
+      final ref = FirebaseStorage.instance.ref('rider_vehicles/$uid.jpg');
+      await ref.putData(
+        _imageBytes!,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      return await ref.getDownloadURL();
+    } catch (e) {
+      _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
+      return null;
+    }
+  }
+
+  // ----- register rider (Auth + Firestore:riders/{uid}) -----
+  Future<void> _onRegisterPressed() async {
+    if (_submitting) return;
+
+    final name = _nameCtl.text.trim();
+    final email = _emailCtl.text.trim();
+    final phone = _phoneCtl.text.trim();
+    final plate = _plateCtl.text.trim();
+    final password = _passwordCtl.text;
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        plate.isEmpty ||
+        password.isEmpty) {
+      _showSnack('กรอกข้อมูลให้ครบทุกช่อง');
+      return;
+    }
+    if (!email.contains('@')) {
+      _showSnack('อีเมลไม่ถูกต้อง');
+      return;
+    }
+    if (password.length < 6) {
+      _showSnack('รหัสผ่านต้องอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      // 1) สร้างผู้ใช้
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final uid = cred.user!.uid;
+
+      // 2) อัปโหลดรูป (ถ้ามี)
+      final url = await _uploadVehicleImage(uid);
+      _uploadedImageUrl = url;
+
+      // 3) เขียนโปรไฟล์ไรเดอร์
+      await FirebaseFirestore.instance.collection('riders').doc(uid).set({
+        'user_id': uid,
+        'name': name,
+        'rider_email': email, // << เปลี่ยนตาม ER
+        'phone_number': phone,
+        'license_plate': plate,
+        'vehicle_image': url, // << เปลี่ยนตาม ER
+        'is_available': false,
+        'current_latitude': null,
+        'current_longitude': null,
+        'created_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+      _showSnack('สมัครสมาชิกสำเร็จ', success: true);
+      Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      final msg = switch (e.code) {
+        'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
+        'invalid-email' => 'รูปแบบอีเมลไม่ถูกต้อง',
+        'weak-password' => 'รหัสผ่านไม่ปลอดภัย (อย่างน้อย 6 ตัวอักษร)',
+        _ => 'สมัครไม่สำเร็จ: ${e.message ?? e.code}',
+      };
+      _showSnack(msg);
+    } catch (e) {
+      _showSnack('เกิดข้อผิดพลาด: $e');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  void _showSnack(String message, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  // ========================= UI เดิม =========================
+  static const kYellow = RegisterRider.kYellow;
+  static const kGrey = RegisterRider.kGrey;
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +167,10 @@ class RegisterRider extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black,
+          ),
           onPressed: () => Navigator.pop(context),
           splashRadius: 22,
         ),
@@ -41,7 +195,6 @@ class RegisterRider extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              // Toggle ผู้ใช้ระบบ/ไรเดอร์ (ดีไซน์เดิม)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Row(
@@ -49,7 +202,12 @@ class RegisterRider extends StatelessWidget {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          // TODO: ถ้ามีหน้า Register ของ "ผู้ใช้ระบบ" ให้ Navigator.pushReplacement ไปหน้านั้น
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterUser(),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -64,6 +222,7 @@ class RegisterRider extends StatelessWidget {
                         ),
                       ),
                     ),
+
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton(
@@ -94,58 +253,91 @@ class RegisterRider extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           children: [
-            // รูปโปรไฟล์
+            // avatar (เพิ่มเลือก/preview รูป แต่ UI เดิม)
             Stack(
               alignment: Alignment.bottomRight,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(60.0),
-                  child: Image.network(
-                    'https://static.wixstatic.com/media/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp/v1/fill/w_740,h_444,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp',
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Color(0xFFD9D9D9),
-                        child: Icon(Icons.person, size: 60, color: Color(0xFF5B5B5B)),
-                      );
-                    },
-                  ),
+                  child: _imageBytes != null
+                      ? Image.memory(
+                          _imageBytes!,
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.network(
+                          'https://static.wixstatic.com/media/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp/v1/fill/w_740,h_444,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp',
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Color(0xFFD9D9D9),
+                            child: Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Color(0xFF5B5B5B),
+                            ),
+                          ),
+                        ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(4.0),
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(4.0),
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 20),
                   ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 20),
                 ),
               ],
             ),
             const SizedBox(height: 30),
 
-            // ฟอร์ม
-            _buildTextField(hintText: 'ชื่อ-สกุล', icon: Icons.person_outline),
+            _buildTextField(
+              hintText: 'ชื่อ-สกุล',
+              icon: Icons.person_outline,
+              controller: _nameCtl,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'อีเมล', icon: Icons.mail_outline),
+            _buildTextField(
+              hintText: 'อีเมล',
+              icon: Icons.mail_outline,
+              controller: _emailCtl,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'หมายเลขโทรศัพท์', icon: Icons.phone_outlined),
+            _buildTextField(
+              hintText: 'หมายเลขโทรศัพท์',
+              icon: Icons.phone_outlined,
+              controller: _phoneCtl,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'ทะเบียนรถ', icon: Icons.directions_car_outlined),
+            _buildTextField(
+              hintText: 'ทะเบียนรถ',
+              icon: Icons.directions_car_outlined,
+              controller: _plateCtl,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildPasswordField(hintText: 'Password', icon: Icons.lock_outline),
+            _buildPasswordField(
+              hintText: 'Password',
+              icon: Icons.lock_outline,
+              controller: _passwordCtl,
+            ),
             const SizedBox(height: 16),
 
-            // ปุ่มสมัครสมาชิก
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  // TODO: ต่อ backend สมัครสมาชิก
-                  Navigator.pop(context); // สมัครเสร็จ -> กลับหน้า LoginRider
-                },
+                onPressed: _onRegisterPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kYellow,
                   shape: RoundedRectangleBorder(
@@ -153,9 +345,9 @@ class RegisterRider extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 18.0),
                 ),
-                child: const Text(
-                  'สมัครสมาชิก',
-                  style: TextStyle(
+                child: Text(
+                  _submitting ? 'กำลังสมัคร...' : 'สมัครสมาชิก',
+                  style: const TextStyle(
                     color: Colors.black,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -169,56 +361,100 @@ class RegisterRider extends StatelessWidget {
     );
   }
 
-  // ---------- Widgets ย่อย ----------
-
-  Widget _buildTextField({required String hintText, IconData? icon}) {
+  // ---- widgets เดิม ----
+  Widget _buildTextField({
+    required String hintText,
+    IconData? icon,
+    TextEditingController? controller,
+    TextInputType? keyboardType,
+    TextInputAction? textInputAction,
+  }) {
     return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: kGrey),
-        prefixIcon: icon != null ? Icon(icon, color: kGrey) : null,
+        hintStyle: const TextStyle(color: RegisterRider.kGrey),
+        prefixIcon: icon != null
+            ? Icon(icon, color: RegisterRider.kGrey)
+            : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: kYellow, width: 2.0),
+          borderSide: const BorderSide(
+            color: RegisterRider.kYellow,
+            width: 2.0,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: kYellow, width: 2.0),
+          borderSide: const BorderSide(
+            color: RegisterRider.kYellow,
+            width: 2.0,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: kYellow, width: 2.0),
+          borderSide: const BorderSide(
+            color: RegisterRider.kYellow,
+            width: 2.0,
+          ),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 16.0,
+        ),
       ),
     );
   }
 
-  Widget _buildPasswordField({required String hintText, IconData? icon}) {
+  Widget _buildPasswordField({
+    required String hintText,
+    IconData? icon,
+    TextEditingController? controller,
+  }) {
     return TextFormField(
+      controller: controller,
       obscureText: true,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: kGrey),
-        prefixIcon: icon != null ? Icon(icon, color: kGrey) : null,
-        suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: kGrey),
+        hintStyle: const TextStyle(color: RegisterRider.kGrey),
+        prefixIcon: icon != null
+            ? Icon(icon, color: RegisterRider.kGrey)
+            : null,
+        suffixIcon: const Icon(
+          Icons.remove_red_eye_outlined,
+          color: RegisterRider.kGrey,
+        ),
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: kYellow, width: 2.0),
+          borderSide: const BorderSide(
+            color: RegisterRider.kYellow,
+            width: 2.0,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: kYellow, width: 2.0),
+          borderSide: const BorderSide(
+            color: RegisterRider.kYellow,
+            width: 2.0,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: kYellow, width: 2.0),
+          borderSide: const BorderSide(
+            color: RegisterRider.kYellow,
+            width: 2.0,
+          ),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 16.0,
+        ),
       ),
     );
   }

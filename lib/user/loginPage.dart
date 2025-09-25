@@ -1,28 +1,128 @@
 import 'package:delivery/rider/HomePageRider.dart';
 import 'package:delivery/rider/registerRider.dart';
-import 'package:delivery/user/login_user.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-class LoginRiderScreen extends StatefulWidget {
-  const LoginRiderScreen({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
 
   @override
-  State<LoginRiderScreen> createState() => _LoginRiderScreenState();
+  State<LoginPage> createState() => _LoginPage();
 }
 
-class _LoginRiderScreenState extends State<LoginRiderScreen> {
-  int selectedRole = 1; // เริ่มเป็นไรเดอร์
+class _LoginPage extends State<LoginPage> {
+  int selectedRole = 1; // keep for compatibility
   bool obscure = true;
 
   final emailCtl = TextEditingController();
   final passCtl = TextEditingController();
 
+  bool _loading = false;
+
+  // theme
   static const kYellow = Color(0xFFF0DB0C);
-  static const kDarkCard = Color(0xFF4D4D4D);
   static const kTextBlack = Color(0xFF111111);
   static const kBlue = Color(0xFF2F47FF);
 
+  @override
+  void dispose() {
+    emailCtl.dispose();
+    passCtl.dispose();
+    super.dispose();
+  }
+
+  void _showSnack(String msg, {bool ok = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: ok ? Colors.green : Colors.red),
+    );
+  }
+
+  String _mapAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'อีเมลไม่ถูกต้อง';
+      case 'user-not-found':
+      case 'wrong-password':
+        return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+      case 'user-disabled':
+        return 'บัญชีนี้ถูกปิดการใช้งาน';
+      default:
+        return 'เข้าสู่ระบบไม่สำเร็จ: ${e.message ?? e.code}';
+    }
+  }
+
+  /// ล็อกอินได้ทั้ง user และ rider โดยตรวจสอบคอลเลกชันจาก uid
+  Future<void> _loginRider() async {
+    if (_loading) return;
+
+    final email = emailCtl.text.trim().toLowerCase();
+    final pass  = passCtl.text;
+
+    if (email.isEmpty || pass.isEmpty) {
+      _showSnack('กรอกอีเมลและรหัสผ่าน');
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final cred = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: pass);
+      final uid = cred.user!.uid;
+
+      final fs = FirebaseFirestore.instance;
+
+      // 1) เช็คว่าเป็น Rider ไหม
+      final riderDoc = await fs.collection('riders').doc(uid).get();
+      if (riderDoc.exists) {
+        final name = (riderDoc.data()?['name'] as String?)?.trim();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomePageRider(
+              name: (name != null && name.isNotEmpty) ? name : email,
+            ),
+          ),
+        );
+        return;
+      }
+
+      // 2) ถ้าไม่ใช่ Rider → เช็คเป็นผู้ใช้ระบบ
+      final userDoc = await fs.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        // ถ้าคุณมีหน้าโฮมของ user เช่น HomeUser ให้เปลี่ยนปลายทางตรงนี้
+        if (!mounted) return;
+        return;
+      }
+
+      // 3) ไม่พบทั้งสองบทบาท
+      await FirebaseAuth.instance.signOut();
+      _showSnack('บัญชียังไม่ได้ลงทะเบียนเป็นผู้ใช้ระบบหรือไรเดอร์');
+    } on FirebaseAuthException catch (e) {
+      _showSnack(_mapAuthError(e));
+    } catch (e) {
+      _showSnack('เกิดข้อผิดพลาด: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = emailCtl.text.trim().toLowerCase();
+    if (email.isEmpty) {
+      _showSnack('กรอกอีเมลก่อน');
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      _showSnack('ส่งอีเมลสำหรับรีเซ็ตรหัสผ่านแล้ว', ok: true);
+    } on FirebaseAuthException catch (e) {
+      _showSnack(e.message ?? 'ส่งอีเมลไม่สำเร็จ');
+    }
+  }
+
+  // -------------------- UI ตามภาพ (ไม่แก้โครง/สไตล์) --------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,8 +130,9 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // หัวเหลือง
+          // header
           Container(
+            height: 160,
             padding: const EdgeInsets.fromLTRB(16, 36, 16, 24),
             decoration: const BoxDecoration(
               color: kYellow,
@@ -40,50 +141,18 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
                 bottomRight: Radius.circular(26),
               ),
             ),
-            child: Column(
-              children: [
-                const Text(
-                  'เข้าสู่ระบบ',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: kTextBlack,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // 🟡 ผู้ใช้ระบบ -> ไปหน้า LoginUserScreen
-                    _rolePill(
-                      label: 'ผู้ใช้ระบบ',
-                      bg: Colors.white,
-                      fg: kTextBlack,
-                      onTap: () {
-                        setState(() => selectedRole = 0);
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LoginUserScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 14),
-                    // ⚫ ไรเดอร์ (หน้าเดิม)
-                    _rolePill(
-                      label: 'ไรเดอร์',
-                      bg: kDarkCard,
-                      fg: kYellow,
-                      onTap: () => setState(() => selectedRole = 1),
-                    ),
-                  ],
-                ),
-              ],
+            alignment: Alignment.bottomCenter,
+            child: const Text(
+              'เข้าสู่ระบบ',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                color: kTextBlack,
+              ),
             ),
           ),
 
-          // ฟอร์ม (กึ่งกลาง)
+          // content
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 28),
@@ -104,7 +173,7 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
                         controller: passCtl,
                         hint: 'Password',
                         icon: Icons.lock_rounded,
-                        obscure: obscure,
+                        obscure: obscure, // toggle
                         suffix: InkWell(
                           onTap: () => setState(() => obscure = !obscure),
                           child: Padding(
@@ -123,7 +192,7 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton(
-                          onPressed: () {},
+                          onPressed: _forgotPassword,
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFFE1C700),
                             padding: EdgeInsets.zero,
@@ -137,27 +206,15 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
 
-                      // เข้าสู่ระบบ -> HomePageRider
                       Align(
                         alignment: Alignment.center,
                         child: SizedBox(
                           width: 190,
                           height: 46,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => HomePageRider(
-                                    name: emailCtl.text.trim().isEmpty
-                                        ? 'Tester'
-                                        : emailCtl.text.trim(),
-                                  ),
-                                ),
-                              );
-                            },
+                            onPressed: _loading ? null : _loginRider, // กันกดซ้ำ
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kYellow,
                               foregroundColor: kTextBlack,
@@ -174,9 +231,8 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
 
-                      // สมัครสมาชิก -> RegisterRider
                       Align(
                         alignment: Alignment.center,
                         child: TextButton(
@@ -184,8 +240,7 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const RegisterRider(),
-                              ),
+                                  builder: (_) => const RegisterRider()),
                             );
                           },
                           style: TextButton.styleFrom(
@@ -210,37 +265,7 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
     );
   }
 
-  Widget _rolePill({
-    required String label,
-    required Color bg,
-    required Color fg,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      height: 44,
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: fg,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
+  // input box (UI เดิม)
   Widget _inputBox({
     required TextEditingController controller,
     required String hint,
@@ -252,21 +277,23 @@ class _LoginRiderScreenState extends State<LoginRiderScreen> {
       controller: controller,
       obscureText: obscure,
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: Colors.black.withOpacity(.7)),
+        prefixIcon: Icon(icon, color: Colors.black.withOpacity(.5)),
         suffixIcon: suffix,
         hintText: hint,
         hintStyle: TextStyle(
-          color: Colors.black.withOpacity(.55),
+          color: Colors.black.withOpacity(.45),
           fontSize: 14.5,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        filled: false,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: kYellow, width: 1.4),
+          borderSide: const BorderSide(color: kYellow, width: 1.6),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: kYellow, width: 1.8),
+          borderSide: const BorderSide(color: kYellow, width: 2),
         ),
       ),
       style: const TextStyle(fontSize: 14.5, color: kTextBlack),

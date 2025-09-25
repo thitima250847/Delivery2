@@ -1,5 +1,5 @@
+import 'package:delivery/user/loginPage.dart';
 import 'package:flutter/material.dart';
-import 'login_rider.dart'; 
 
 class HomePageRider extends StatelessWidget {
   const HomePageRider({super.key, this.name = 'Tester'});
@@ -126,7 +126,7 @@ class HomePageRider extends StatelessWidget {
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const LoginRiderScreen(),
+                      builder: (_) => const LoginPage(),
                     ),
                     (route) => false,
                   );

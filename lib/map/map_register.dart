@@ -1,10 +1,11 @@
-// lib/map_picker_screen.dart (ฉบับเขียนใหม่ทั้งหมดสำหรับ Thunderforest)
+// lib/map_picker_screen.dart
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart' as latlong; // ใช้ as latlong เพื่อไม่ให้ชื่อซ้ำกับ library อื่น
+import 'package:latlong2/latlong.dart' as latlong;
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart'; // <-- import แค่ครั้งเดียว
 
 class MapPickerScreen extends StatefulWidget {
   const MapPickerScreen({super.key});
@@ -14,63 +15,100 @@ class MapPickerScreen extends StatefulWidget {
 }
 
 class MapPickerScreenState extends State<MapPickerScreen> {
-  // Controller สำหรับควบคุมแผนที่ของ flutter_map
   final MapController _mapController = MapController();
-  
-  // ตัวแปรสำหรับเก็บตำแหน่งที่ผู้ใช้เลือก
-  latlong.LatLng? _pickedLocation;
 
-  // ตำแหน่งเริ่มต้น (กรุงเทพฯ) ใช้ในกรณีที่ดึงตำแหน่งปัจจุบันไม่ได้
-  final latlong.LatLng _initialPosition =
-      const latlong.LatLng(13.7563, 100.5018);
+  latlong.LatLng? _pickedLocation;
+  String? _pickedAddress;
+
+  final latlong.LatLng _initialPosition = const latlong.LatLng(
+    13.7563,
+    100.5018,
+  );
 
   @override
   void initState() {
     super.initState();
-    // เรียกใช้ฟังก์ชันเพื่อดึงตำแหน่งปัจจุบันเมื่อหน้าจอถูกสร้างขึ้น
     _getCurrentLocationAndMoveCamera();
   }
 
-  // ฟังก์ชันสำหรับขออนุญาตและดึงตำแหน่งปัจจุบัน
+  // ดึงตำแหน่งปัจจุบันและย้ายกล้อง
   Future<void> _getCurrentLocationAndMoveCamera() async {
     try {
-      // 1. ตรวจสอบและขออนุญาตการเข้าถึงตำแหน่ง
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง'),
-            ));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง')),
+            );
           }
           return;
         }
       }
 
-      // 2. ดึงตำแหน่งปัจจุบัน
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      final currentLocation =
-          latlong.LatLng(position.latitude, position.longitude);
+      final currentLocation = latlong.LatLng(
+        position.latitude,
+        position.longitude,
+      );
 
-      // 3. ย้ายแผนที่ไปยังตำแหน่งปัจจุบันและปักหมุด
-      _mapController.move(currentLocation, 16.0); // 16.0 คือระดับการซูม
-      setState(() {
-        _pickedLocation = currentLocation;
-      });
+      _mapController.move(currentLocation, 16.0);
+
+      // ดึงที่อยู่จากตำแหน่งปัจจุบัน
+      _updatePickedLocation(currentLocation);
     } catch (e) {
       print("Error getting current location: $e");
     }
   }
 
-  // ฟังก์ชันที่จะทำงานเมื่อผู้ใช้แตะบนแผนที่
-  void _onMapTapped(TapPosition tapPosition, latlong.LatLng location) {
+  // อัปเดตตำแหน่งและดึงชื่อที่อยู่
+  Future<void> _updatePickedLocation(latlong.LatLng location) async {
     setState(() {
       _pickedLocation = location;
+      _pickedAddress = 'กำลังค้นหาที่อยู่...';
     });
+
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+        localeIdentifier: 'th_TH',
+      );
+
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        final address = [
+          placemark.subThoroughfare, // บ้านเลขที่
+          placemark.thoroughfare, // ถนน
+          placemark.subLocality, // ตำบล/แขวง
+          placemark.locality, // อำเภอ/เขต
+          placemark.administrativeArea, // จังหวัด
+          placemark.postalCode, // รหัสไปรษณีย์
+        ].where((e) => e != null && e.isNotEmpty).join(', ');
+
+        setState(() {
+          _pickedAddress = address;
+        });
+      } else {
+        setState(() {
+          _pickedAddress = 'ไม่พบข้อมูลที่อยู่';
+        });
+      }
+    } catch (e) {
+      print("Error getting address: $e");
+      setState(() {
+        _pickedAddress = 'เกิดข้อผิดพลาดในการค้นหาที่อยู่';
+      });
+    }
+  }
+
+  // ฟังก์ชันเรียกเมื่อแตะแผนที่
+  void _onMapTapped(TapPosition tapPosition, latlong.LatLng location) {
+    _updatePickedLocation(location);
   }
 
   @override
@@ -91,12 +129,10 @@ class MapPickerScreenState extends State<MapPickerScreen> {
             ),
             children: [
               TileLayer(
-                // ‼️ สำคัญ: นำ API Key จาก Thunderforest Console มาใส่ตรงนี้ ‼️
                 urlTemplate:
                     'https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=2d1b06685c2b44b98e32ef3a085ca2ca',
-                userAgentPackageName: 'com.example.delivery', // <-- อาจจะต้องเปลี่ยนเป็น package name ของแอปคุณ
+                userAgentPackageName: 'com.example.delivery',
               ),
-              // แสดง Marker ถ้ามีตำแหน่งที่ถูกเลือกแล้ว
               if (_pickedLocation != null)
                 MarkerLayer(
                   markers: [
@@ -114,6 +150,40 @@ class MapPickerScreenState extends State<MapPickerScreen> {
                 ),
             ],
           ),
+
+          // กล่องแสดงที่อยู่
+          if (_pickedAddress != null)
+            Positioned(
+              top: 20,
+              left: 20,
+              right: 20,
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _pickedAddress!,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // ปุ่มยืนยันตำแหน่ง
           Positioned(
             bottom: 30,
@@ -121,13 +191,17 @@ class MapPickerScreenState extends State<MapPickerScreen> {
             right: 20,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.check, color: Colors.white),
-              label: const Text('ยืนยันตำแหน่งนี้',
-                  style: TextStyle(fontSize: 18, color: Colors.white)),
-              onPressed: _pickedLocation == null
+              label: const Text(
+                'ยืนยันตำแหน่งนี้',
+                style: TextStyle(fontSize: 18, color: Colors.white),
+              ),
+              onPressed: _pickedLocation == null || _pickedAddress == null
                   ? null
                   : () {
-                      // ส่งค่าพิกัดกลับไปหน้า registerUser
-                      Navigator.of(context).pop(_pickedLocation);
+                      Navigator.of(context).pop({
+                        'location': _pickedLocation,
+                        'address': _pickedAddress,
+                      });
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
@@ -137,7 +211,7 @@ class MapPickerScreenState extends State<MapPickerScreen> {
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
     );

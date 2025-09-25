@@ -1,6 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:delivery/firebase_options.dart';
-import 'package:delivery/user/login_user.dart';
+import 'package:delivery/user/login.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 

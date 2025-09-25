@@ -1,7 +1,5 @@
 import 'package:delivery/rider/HomePageRider.dart';
 import 'package:delivery/rider/registerRider.dart';
-import 'package:delivery/user/home_user.dart';
-import 'package:delivery/user/login_user.dart'; // ใช้เป็น placeholder หน้า Home ของ user (แก้เป็น HomeUser ถ้ามี)
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -95,13 +93,6 @@ class _LoginPage extends State<LoginPage> {
       if (userDoc.exists) {
         // ถ้าคุณมีหน้าโฮมของ user เช่น HomeUser ให้เปลี่ยนปลายทางตรงนี้
         if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            // TODO: เปลี่ยนเป็นหน้าโฮมผู้ใช้ระบบจริง ๆ ของคุณ เช่น HomeUser()
-            builder: (_) => const DeliveryPage(),
-          ),
-        );
         return;
       }
 

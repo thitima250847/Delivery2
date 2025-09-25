@@ -41,17 +41,39 @@ class _RegisterRiderState extends State<RegisterRider> {
     super.dispose();
   }
 
-  // ----- pick image (UI ไม่เปลี่ยน แค่เพิ่ม onTap) -----
+  // //คำสั่งที่ใช้สำหรับเลือกไฟล์รูปภาพจากเครื่อง
+
   Future<void> _pickImage() async {
     try {
-      final XFile? x = await _picker.pickImage(
+      print('กำลังจะเปิดหน้าจอเลือกรูปภาพ...');
+      final x = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 75,
       );
-      if (x == null) return;
+
+      // ตรวจสอบว่าผู้ใช้ได้เลือกรูปภาพหรือไม่
+      if (x == null) {
+        print('ผู้ใช้ยกเลิกการเลือกรูปภาพ.');
+        return;
+      }
+
+      print('เลือกรูปภาพสำเร็จ: ${x.name}');
+
       final bytes = await x.readAsBytes();
-      setState(() => _imageBytes = bytes);
+      if (!mounted) return;
+
+      // ตรวจสอบว่าได้ข้อมูลรูปภาพมาหรือไม่
+      if (bytes.isNotEmpty) {
+        print('แปลงรูปภาพเป็น bytes สำเร็จ! ขนาด: ${bytes.length} bytes');
+      } else {
+        print('แปลงรูปภาพเป็น bytes ไม่สำเร็จ.');
+      }
+
+      setState(() {
+        _imageBytes = bytes;
+      });
     } catch (e) {
+      print('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e');
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
   }
@@ -161,19 +183,11 @@ class _RegisterRiderState extends State<RegisterRider> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         toolbarHeight: 120,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.black,
-          ),
-          onPressed: () => Navigator.pop(context),
-          splashRadius: 22,
-        ),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             color: kYellow,
@@ -201,7 +215,7 @@ class _RegisterRiderState extends State<RegisterRider> {
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed:  () {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
@@ -257,40 +271,45 @@ class _RegisterRiderState extends State<RegisterRider> {
             Stack(
               alignment: Alignment.bottomRight,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(60.0),
-                  child: _imageBytes != null
-                      ? Image.memory(
-                          _imageBytes!,
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                        )
-                      : Image.network(
-                          'https://static.wixstatic.com/media/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp/v1/fill/w_740,h_444,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/c6a3da_db59e90fb0a84dd2ba396718cf717077~mv2.webp',
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Color(0xFFD9D9D9),
-                            child: Icon(
-                              Icons.person,
-                              size: 60,
-                              color: Color(0xFF5B5B5B),
-                            ),
-                          ),
-                        ),
-                ),
                 GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    padding: const EdgeInsets.all(4.0),
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                  onTap: _pickImage, // ย้าย GestureDetector มาคลุมทั้ง Stack
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(60.0),
+                        child: _imageBytes != null
+                            ? Image.memory(
+                                _imageBytes!,
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                width: 120,
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                      // ส่วนของไอคอน add ยังคงอยู่
+                      Container(
+                        padding: const EdgeInsets.all(4.0),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

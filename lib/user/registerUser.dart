@@ -54,42 +54,41 @@ class _RegisterUserState extends State<RegisterUser> {
     );
   }
   // //คำสั่งที่ใช้สำหรับเลือกไฟล์รูปภาพจากเครื่อง
+  Future<void> _pickImage() async {
+    try {
+      print('กำลังจะเปิดหน้าจอเลือกรูปภาพ...');
+      final x = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 75,
+      );
 
-Future<void> _pickImage() async {
-  try {
-    print('กำลังจะเปิดหน้าจอเลือกรูปภาพ...');
-    final x = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 75,
-    );
+      // ตรวจสอบว่าผู้ใช้ได้เลือกรูปภาพหรือไม่
+      if (x == null) {
+        print('ผู้ใช้ยกเลิกการเลือกรูปภาพ.');
+        return;
+      }
 
-    // ตรวจสอบว่าผู้ใช้ได้เลือกรูปภาพหรือไม่
-    if (x == null) {
-      print('ผู้ใช้ยกเลิกการเลือกรูปภาพ.');
-      return;
+      print('เลือกรูปภาพสำเร็จ: ${x.name}');
+
+      final bytes = await x.readAsBytes();
+      if (!mounted) return;
+
+      // ตรวจสอบว่าได้ข้อมูลรูปภาพมาหรือไม่
+      if (bytes.isNotEmpty) {
+        print('แปลงรูปภาพเป็น bytes สำเร็จ! ขนาด: ${bytes.length} bytes');
+      } else {
+        print('แปลงรูปภาพเป็น bytes ไม่สำเร็จ.');
+      }
+
+      setState(() {
+        _imageBytes = bytes;
+      });
+    } catch (e) {
+      print('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e');
+      _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
-
-    print('เลือกรูปภาพสำเร็จ: ${x.name}');
-
-    final bytes = await x.readAsBytes();
-    if (!mounted) return;
-
-    // ตรวจสอบว่าได้ข้อมูลรูปภาพมาหรือไม่
-    if (bytes.isNotEmpty) {
-      print('แปลงรูปภาพเป็น bytes สำเร็จ! ขนาด: ${bytes.length} bytes');
-    } else {
-      print('แปลงรูปภาพเป็น bytes ไม่สำเร็จ.');
-    }
-
-    setState(() {
-      _imageBytes = bytes;
-    });
-  } catch (e) {
-    print('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e');
-    _showSnack('เลือกรูปไม่สำเร็จ: $e');
   }
-}
- 
+
   Future<String?> _uploadProfile(String uid) async {
     if (_imageBytes == null) return null;
     try {
@@ -235,6 +234,7 @@ Future<void> _pickImage() async {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         toolbarHeight: 120,
         backgroundColor: Colors.transparent,
         elevation: 0,

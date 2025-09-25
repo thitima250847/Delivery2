@@ -1,6 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:delivery/firebase_options.dart';
-import 'package:delivery/user/registerUser.dart';
+import 'package:delivery/user/login.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const RegisterUser(), // กำหนด RegisterUser เป็นหน้าแรก
+      home: const LoginPage(), // กำหนด RegisterUser เป็นหน้าแรก
       debugShowCheckedModeBanner: false, // สามารถลบแบนเนอร์ debug ได้
     );
   }

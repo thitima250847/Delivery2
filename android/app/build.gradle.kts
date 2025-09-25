@@ -48,5 +48,4 @@ flutter {
 
 dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.9.0"))
-    implementation 'com.google.android.gms:play-services-base:18.2.0'
 }

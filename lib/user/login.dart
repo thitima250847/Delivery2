@@ -1,5 +1,6 @@
 import 'package:delivery/rider/HomePageRider.dart';
 import 'package:delivery/rider/registerRider.dart';
+import 'package:delivery/user/home_user.dart'; // <— เพิ่ม เพื่อพา user ไปหน้าโฮม
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -69,11 +70,17 @@ class _LoginPage extends State<LoginPage> {
       final cred = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: pass);
       final uid = cred.user!.uid;
-
       final fs = FirebaseFirestore.instance;
 
-      // 1) เช็คว่าเป็น Rider ไหม
-      final riderDoc = await fs.collection('riders').doc(uid).get();
+      // โหลดพร้อมกันเพื่อลดเวลา
+      final results = await Future.wait([
+        fs.collection('riders').doc(uid).get(),
+        fs.collection('users').doc(uid).get(),
+      ]);
+
+      final riderDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final userDoc  = results[1] as DocumentSnapshot<Map<String, dynamic>>;
+
       if (riderDoc.exists) {
         final name = (riderDoc.data()?['name'] as String?)?.trim();
         if (!mounted) return;
@@ -88,15 +95,18 @@ class _LoginPage extends State<LoginPage> {
         return;
       }
 
-      // 2) ถ้าไม่ใช่ Rider → เช็คเป็นผู้ใช้ระบบ
-      final userDoc = await fs.collection('users').doc(uid).get();
       if (userDoc.exists) {
-        // ถ้าคุณมีหน้าโฮมของ user เช่น HomeUser ให้เปลี่ยนปลายทางตรงนี้
+        // ถ้าหน้า Home ของ user ต้องการพารามิเตอร์ เช่น name ให้ดึงมาแล้วส่งต่อเอง
+        // final name = (userDoc.data()?['name'] as String?) ?? email;
         if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const DeliveryPage()),
+        );
         return;
       }
 
-      // 3) ไม่พบทั้งสองบทบาท
+      // ไม่พบในทั้งสองบทบาท
       await FirebaseAuth.instance.signOut();
       _showSnack('บัญชียังไม่ได้ลงทะเบียนเป็นผู้ใช้ระบบหรือไรเดอร์');
     } on FirebaseAuthException catch (e) {
@@ -122,7 +132,7 @@ class _LoginPage extends State<LoginPage> {
     }
   }
 
-  // -------------------- UI ตามภาพ (ไม่แก้โครง/สไตล์) --------------------
+  // -------------------- UI เดิม --------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,7 +140,6 @@ class _LoginPage extends State<LoginPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // header
           Container(
             height: 160,
             padding: const EdgeInsets.fromLTRB(16, 36, 16, 24),
@@ -151,8 +160,6 @@ class _LoginPage extends State<LoginPage> {
               ),
             ),
           ),
-
-          // content
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 28),
@@ -173,22 +180,20 @@ class _LoginPage extends State<LoginPage> {
                         controller: passCtl,
                         hint: 'Password',
                         icon: Icons.lock_rounded,
-                        obscure: obscure, // toggle
+                        obscure: obscure,
                         suffix: InkWell(
                           onTap: () => setState(() => obscure = !obscure),
                           child: Padding(
                             padding: const EdgeInsets.only(right: 10),
                             child: Icon(
-                              obscure
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                              obscure ? Icons.visibility_outlined
+                                     : Icons.visibility_off_outlined,
                               size: 22,
                               color: Colors.black.withOpacity(.75),
                             ),
                           ),
                         ),
                       ),
-
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton(
@@ -205,16 +210,14 @@ class _LoginPage extends State<LoginPage> {
                           child: const Text('ลืมรหัสผ่าน?'),
                         ),
                       ),
-
                       const SizedBox(height: 8),
-
                       Align(
                         alignment: Alignment.center,
                         child: SizedBox(
                           width: 190,
                           height: 46,
                           child: ElevatedButton(
-                            onPressed: _loading ? null : _loginRider, // กันกดซ้ำ
+                            onPressed: _loading ? null : _loginRider,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kYellow,
                               foregroundColor: kTextBlack,
@@ -230,17 +233,14 @@ class _LoginPage extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 12),
-
                       Align(
                         alignment: Alignment.center,
                         child: TextButton(
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
-                                  builder: (_) => const RegisterRider()),
+                              MaterialPageRoute(builder: (_) => const RegisterRider()),
                             );
                           },
                           style: TextButton.styleFrom(
@@ -265,7 +265,6 @@ class _LoginPage extends State<LoginPage> {
     );
   }
 
-  // input box (UI เดิม)
   Widget _inputBox({
     required TextEditingController controller,
     required String hint,
@@ -284,8 +283,7 @@ class _LoginPage extends State<LoginPage> {
           color: Colors.black.withOpacity(.45),
           fontSize: 14.5,
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         filled: false,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),

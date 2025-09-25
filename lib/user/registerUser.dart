@@ -42,15 +42,28 @@ class _RegisterUserState extends State<RegisterUser> {
 
   void _showSnack(String msg, {bool ok = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: ok ? Colors.green : Colors.red),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: ok ? Colors.green : Colors.red,
+      ),
     );
   }
 
   Future<void> _pickImage() async {
     try {
-      final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
+      final x = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 75,
+      );
       if (x == null) return;
-      setState(() => _imageBytes = await x.readAsBytes());
+
+      // อ่าน bytes ให้เสร็จก่อน (ภายนอก setState)
+      final bytes = await x.readAsBytes();
+
+      if (!mounted) return;
+      setState(() {
+        _imageBytes = bytes; // อัปเดต state แบบ sync
+      });
     } catch (e) {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
@@ -60,7 +73,10 @@ class _RegisterUserState extends State<RegisterUser> {
     if (_imageBytes == null) return null;
     try {
       final ref = FirebaseStorage.instance.ref('user_profiles/$uid.jpg');
-      await ref.putData(_imageBytes!, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(
+        _imageBytes!,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
       return await ref.getDownloadURL();
     } catch (e) {
       _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
@@ -104,8 +120,10 @@ class _RegisterUserState extends State<RegisterUser> {
     setState(() => _submitting = true);
     try {
       // 1) Auth
-      final cred = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       final uid = cred.user!.uid;
 
       // 2) upload รูป (ถ้ามี)
@@ -169,8 +187,10 @@ class _RegisterUserState extends State<RegisterUser> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('สมัครสมาชิก',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
+              const Text(
+                'สมัครสมาชิก',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
+              ),
               const SizedBox(height: 20),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -186,8 +206,10 @@ class _RegisterUserState extends State<RegisterUser> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text('ผู้ใช้ระบบ',
-                            style: TextStyle(color: Colors.white, fontSize: 16)),
+                        child: const Text(
+                          'ผู้ใช้ระบบ',
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -195,15 +217,24 @@ class _RegisterUserState extends State<RegisterUser> {
                       child: ElevatedButton(
                         onPressed: () {},
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            255,
+                            255,
+                            255,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
-                            side: const BorderSide(color: Color.fromARGB(255, 255, 255, 255)),
+                            side: const BorderSide(
+                              color: Color.fromARGB(255, 255, 255, 255),
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text('ไรเดอร์',
-                            style: TextStyle(color: Colors.black, fontSize: 16)),
+                        child: const Text(
+                          'ไรเดอร์',
+                          style: TextStyle(color: Colors.black, fontSize: 16),
+                        ),
                       ),
                     ),
                   ],
@@ -224,21 +255,38 @@ class _RegisterUserState extends State<RegisterUser> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(60.0),
                   child: _imageBytes != null
-                      ? Image.memory(_imageBytes!, width: 120, height: 120, fit: BoxFit.cover)
+                      ? Image.memory(
+                          _imageBytes!,
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                        )
                       : Image.network(
                           'https://i.pinimg.com/originals/72/9a/b5/729ab57b5e3d618b872f6b50244ac6d9.jpg',
-                          width: 120, height: 120, fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const CircleAvatar(
-                            radius: 60, backgroundColor: Color(0xFFD9D9D9),
-                            child: Icon(Icons.person, size: 60, color: Color(0xFF5B5B5B)),
-                          ),
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const CircleAvatar(
+                                radius: 60,
+                                backgroundColor: Color(0xFFD9D9D9),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Color(0xFF5B5B5B),
+                                ),
+                              ),
                         ),
                 ),
                 GestureDetector(
-                  onTap: _pickImage, // <— ไม่ใช้ await ใน closure ที่ไม่ใช่ async
+                  onTap:
+                      _pickImage, // <— ไม่ใช้ await ใน closure ที่ไม่ใช่ async
                   child: Container(
                     padding: const EdgeInsets.all(4.0),
-                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
                     child: const Icon(Icons.add, color: Colors.white, size: 20),
                   ),
                 ),
@@ -246,17 +294,47 @@ class _RegisterUserState extends State<RegisterUser> {
             ),
             const SizedBox(height: 30),
 
-            _buildTextField(hintText: 'ชื่อ-สกุล', icon: Icons.person_outline, controller: _nameCtl, textInputAction: TextInputAction.next),
+            _buildTextField(
+              hintText: 'ชื่อ-สกุล',
+              icon: Icons.person_outline,
+              controller: _nameCtl,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'อีเมล', icon: Icons.mail_outline, controller: _emailCtl, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next),
+            _buildTextField(
+              hintText: 'อีเมล',
+              icon: Icons.mail_outline,
+              controller: _emailCtl,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'หมายเลขโทรศัพท์', icon: Icons.phone_outlined, controller: _phoneCtl, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next),
+            _buildTextField(
+              hintText: 'หมายเลขโทรศัพท์',
+              icon: Icons.phone_outlined,
+              controller: _phoneCtl,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'ที่อยู่', icon: Icons.location_on_outlined, controller: _addressCtl, textInputAction: TextInputAction.next),
+            _buildTextField(
+              hintText: 'ที่อยู่',
+              icon: Icons.location_on_outlined,
+              controller: _addressCtl,
+              textInputAction: TextInputAction.next,
+            ),
             const SizedBox(height: 16),
-            _buildPasswordField(hintText: 'Password', icon: Icons.lock_outline, controller: _passwordCtl),
+            _buildPasswordField(
+              hintText: 'Password',
+              icon: Icons.lock_outline,
+              controller: _passwordCtl,
+            ),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'พิกัด GPS ของสถานที่รับสินค้า', icon: Icons.gps_fixed_outlined, controller: _gpsCtl),
+            _buildTextField(
+              hintText: 'พิกัด GPS ของสถานที่รับสินค้า',
+              icon: Icons.gps_fixed_outlined,
+              controller: _gpsCtl,
+            ),
             const SizedBox(height: 30),
 
             SizedBox(
@@ -265,11 +343,19 @@ class _RegisterUserState extends State<RegisterUser> {
                 onPressed: _onRegisterPressed, // <— ไม่ต้อง await ใน closure
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFEE600),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 18.0),
                 ),
-                child: const Text('สมัครสมาชิก',
-                  style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'สมัครสมาชิก',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ],
@@ -293,7 +379,9 @@ class _RegisterUserState extends State<RegisterUser> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF5B5B5B)) : null,
+        prefixIcon: icon != null
+            ? Icon(icon, color: const Color(0xFF5B5B5B))
+            : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
@@ -308,7 +396,10 @@ class _RegisterUserState extends State<RegisterUser> {
           borderRadius: BorderRadius.circular(10.0),
           borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 16.0,
+        ),
       ),
     );
   }
@@ -324,8 +415,13 @@ class _RegisterUserState extends State<RegisterUser> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF5B5B5B)) : null,
-        suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF5B5B5B)),
+        prefixIcon: icon != null
+            ? Icon(icon, color: const Color(0xFF5B5B5B))
+            : null,
+        suffixIcon: const Icon(
+          Icons.remove_red_eye_outlined,
+          color: Color(0xFF5B5B5B),
+        ),
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
@@ -340,7 +436,10 @@ class _RegisterUserState extends State<RegisterUser> {
           borderRadius: BorderRadius.circular(10.0),
           borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 16.0,
+        ),
       ),
     );
   }

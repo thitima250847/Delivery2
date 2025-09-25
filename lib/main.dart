@@ -1,5 +1,4 @@
-import 'package:delivery/rider/registerRider.dart';
-import 'package:delivery/user/registerUser.dart';
+import 'package:delivery/user/loginPage.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -16,7 +15,7 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Demo',
       theme: ThemeData(
       ),
-      home: const RegisterUser(),
+      home: const LoginPage(),
     );
   }
 }

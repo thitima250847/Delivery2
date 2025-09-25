@@ -1,12 +1,16 @@
-// ignore_for_file: file_names
+// registerUser.dart
+
 import 'dart:typed_data';
 
+import 'package:delivery/map/map_register.dart';
 import 'package:delivery/rider/registerRider.dart';
+import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 
 class RegisterUser extends StatefulWidget {
   const RegisterUser({super.key});
@@ -103,7 +107,14 @@ class _RegisterUserState extends State<RegisterUser> {
     final password = _passwordCtl.text;
     final gpsRaw = _gpsCtl.text.trim();
 
-    if ([name, email, phone, addressText, password].any((v) => v.isEmpty)) {
+    if ([
+      name,
+      email,
+      phone,
+      addressText,
+      password,
+      gpsRaw,
+    ].any((v) => v.isEmpty)) {
       _showSnack('กรอกข้อมูลให้ครบทุกช่อง');
       return;
     }
@@ -125,32 +136,51 @@ class _RegisterUserState extends State<RegisterUser> {
       );
       final uid = cred.user!.uid;
 
-      // 2) upload รูป (ถ้ามี)
+      // 2) อัปโหลดรูป (ถ้ามี)
       final url = await _uploadProfile(uid);
 
-      // 3) users/{uid}
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'user_id': uid,
-        'name': name,
-        'user_email': email,
-        'phone_number': phone,
-        'profile_image': url,
-        'created_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // 4) บันทึกข้อมูล user
+        // ใช้ newUserId เป็น Document ID
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'user_id': uid,
+          'name': name,
+          'user_email': email,
+          'phone_number': phone,
+          'profile_image': url,
+          'password': password,
+          // คุณอาจต้องการเก็บ uid จาก Firebase Auth ไว้ด้วย
+          'auth_uid': uid,
+        });
 
-      // 4) addresses
-      final gps = _parseGps(gpsRaw);
-      await FirebaseFirestore.instance.collection('addresses').add({
-        'owner_user_id': uid,
-        'address_text': addressText,
-        'latitude': gps.lat,
-        'longitude': gps.lng,
-        'created_at': FieldValue.serverTimestamp(),
+        // 5) บันทึกข้อมูลที่อยู่ลงใน addresses
+        final gps = _parseGps(gpsRaw);
+        if (gps.lat != null) {
+          await FirebaseFirestore.instance.collection('addresses').add({
+            'owner_user_id': uid, // <--- ใช้ newUserId แทน uid
+            'address_text': addressText,
+            'gps': gps.lat,
+          });
+
+          // 6) อัปเดตข้อมูลที่อยู่ใหม่ใน users
+          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+            'addresses': FieldValue.arrayUnion([
+              {'address_text': addressText, 'gps': gps.lat},
+            ]),
+          });
+        }
       });
 
+      // เมื่อ Transaction สำเร็จ
       if (!mounted) return;
       _showSnack('สมัครสมาชิกสำเร็จ', ok: true);
-      Navigator.pop(context);
+
+      // กลับไปหน้า login
+      // เปลี่ยนเป็นหน้า LoginPage โดยไม่ให้ย้อนกลับมาได้
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
@@ -163,6 +193,21 @@ class _RegisterUserState extends State<RegisterUser> {
       _showSnack('เกิดข้อผิดพลาด: $e');
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  // -------------------- ฟังก์ชันใหม่สำหรับเลือกพิกัดจากแผนที่ --------------------
+  Future<void> _selectGpsFromMap() async {
+    final selectedLocation = await Navigator.push<LatLng?>(
+      context,
+      MaterialPageRoute(builder: (context) => const MapPickerScreen()),
+    );
+
+    if (selectedLocation != null) {
+      setState(() {
+        _gpsCtl.text =
+            '${selectedLocation.latitude}, ${selectedLocation.longitude}';
+      });
     }
   }
 
@@ -221,10 +266,6 @@ class _RegisterUserState extends State<RegisterUser> {
                               builder: (_) => const RegisterRider(),
                             ),
                           );
-                          // ถ้าอยากให้กด back กลับมาหน้านี้ได้ ใช้แบบนี้แทน:
-                          // Navigator.push(context,
-                          //   MaterialPageRoute(builder: (_) => const RegisterRider()),
-                          // );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromARGB(
@@ -289,8 +330,7 @@ class _RegisterUserState extends State<RegisterUser> {
                         ),
                 ),
                 GestureDetector(
-                  onTap:
-                      _pickImage, // <— ไม่ใช้ await ใน closure ที่ไม่ใช่ async
+                  onTap: _pickImage,
                   child: Container(
                     padding: const EdgeInsets.all(4.0),
                     decoration: const BoxDecoration(
@@ -340,17 +380,19 @@ class _RegisterUserState extends State<RegisterUser> {
               controller: _passwordCtl,
             ),
             const SizedBox(height: 16),
+            // แก้ไขตรงนี้ ‼️
             _buildTextField(
               hintText: 'พิกัด GPS ของสถานที่รับสินค้า',
               icon: Icons.gps_fixed_outlined,
               controller: _gpsCtl,
+              isGpsField: true,
             ),
             const SizedBox(height: 30),
 
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _onRegisterPressed, // <— ไม่ต้อง await ใน closure
+                onPressed: _onRegisterPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFEE600),
                   shape: RoundedRectangleBorder(
@@ -358,14 +400,16 @@ class _RegisterUserState extends State<RegisterUser> {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 18.0),
                 ),
-                child: const Text(
-                  'สมัครสมาชิก',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _submitting
+                    ? const CircularProgressIndicator(color: Colors.black)
+                    : const Text(
+                        'สมัครสมาชิก',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -381,11 +425,14 @@ class _RegisterUserState extends State<RegisterUser> {
     TextEditingController? controller,
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
+    bool isGpsField = false, // เพิ่มพารามิเตอร์นี้ ‼️
   }) {
     return TextFormField(
       controller: controller,
+      readOnly: isGpsField, // ทำให้เป็น read-only ถ้าเป็นช่อง GPS ‼️
       keyboardType: keyboardType,
       textInputAction: textInputAction,
+      onTap: isGpsField ? _selectGpsFromMap : null, // เรียกฟังก์ชันเมื่อแตะ ‼️
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),

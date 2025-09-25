@@ -53,25 +53,43 @@ class _RegisterUserState extends State<RegisterUser> {
       ),
     );
   }
+  // //คำสั่งที่ใช้สำหรับเลือกไฟล์รูปภาพจากเครื่อง
 
-  Future<void> _pickImage() async {
-    try {
-      final x = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 75,
-      );
-      if (x == null) return;
+Future<void> _pickImage() async {
+  try {
+    print('กำลังจะเปิดหน้าจอเลือกรูปภาพ...');
+    final x = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+    );
 
-      final bytes = await x.readAsBytes(); // ← รอให้ได้ bytes ก่อน
-      if (!mounted) return;
-      setState(() {
-        _imageBytes = bytes; // ← setState เป็นงาน sync เท่านั้น
-      });
-    } catch (e) {
-      _showSnack('เลือกรูปไม่สำเร็จ: $e');
+    // ตรวจสอบว่าผู้ใช้ได้เลือกรูปภาพหรือไม่
+    if (x == null) {
+      print('ผู้ใช้ยกเลิกการเลือกรูปภาพ.');
+      return;
     }
-  }
 
+    print('เลือกรูปภาพสำเร็จ: ${x.name}');
+
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+
+    // ตรวจสอบว่าได้ข้อมูลรูปภาพมาหรือไม่
+    if (bytes.isNotEmpty) {
+      print('แปลงรูปภาพเป็น bytes สำเร็จ! ขนาด: ${bytes.length} bytes');
+    } else {
+      print('แปลงรูปภาพเป็น bytes ไม่สำเร็จ.');
+    }
+
+    setState(() {
+      _imageBytes = bytes;
+    });
+  } catch (e) {
+    print('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e');
+    _showSnack('เลือกรูปไม่สำเร็จ: $e');
+  }
+}
+ 
   Future<String?> _uploadProfile(String uid) async {
     if (_imageBytes == null) return null;
     try {
@@ -303,41 +321,46 @@ class _RegisterUserState extends State<RegisterUser> {
             Stack(
               alignment: Alignment.bottomRight,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(60.0),
-                  child: _imageBytes != null
-                      ? Image.memory(
-                          _imageBytes!,
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                        )
-                      : Image.network(
-                          'https://i.pinimg.com/originals/72/9a/b5/729ab57b5e3d618b872f6b50244ac6d9.jpg',
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const CircleAvatar(
-                                radius: 60,
-                                backgroundColor: Color(0xFFD9D9D9),
-                                child: Icon(
+                // โค้ดที่แก้ไขแล้ว
+                GestureDetector(
+                  onTap: _pickImage, // ย้าย GestureDetector มาคลุมทั้ง Stack
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(60.0),
+                        child: _imageBytes != null
+                            ? Image.memory(
+                                _imageBytes!,
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                width: 120,
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: const Icon(
                                   Icons.person,
                                   size: 60,
-                                  color: Color(0xFF5B5B5B),
+                                  color: Colors.white,
                                 ),
                               ),
+                      ),
+                      // ส่วนของไอคอน add ยังคงอยู่
+                      Container(
+                        padding: const EdgeInsets.all(4.0),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
                         ),
-                ),
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    padding: const EdgeInsets.all(4.0),
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -1,6 +1,7 @@
 // registerRider.dart
 
 import 'dart:convert';
+import 'dart:math';                         // ⭐ เพิ่ม
 import 'dart:typed_data';
 import 'package:delivery/config/config_Img.dart';
 import 'package:delivery/user/login.dart';
@@ -11,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:crypto/crypto.dart';        // ⭐ เพิ่ม
 
 class RegisterRider extends StatefulWidget {
   const RegisterRider({super.key});
@@ -32,8 +34,8 @@ class _RegisterRiderState extends State<RegisterRider> {
 
   // image state
   final _picker = ImagePicker();
-  Uint8List? _imageBytes; // preview
-  String? _imageExtension; // <-- เพิ่มตัวแปรสำหรับเก็บนามสกุลไฟล์
+  Uint8List? _imageBytes;       
+  String? _imageExtension;      
 
   bool _submitting = false;
 
@@ -49,21 +51,31 @@ class _RegisterRiderState extends State<RegisterRider> {
 
   void _showSnack(String message, {bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: success ? Colors.green : Colors.red),
     );
   }
 
-  // ==================== แก้ไขฟังก์ชันเลือกรูปภาพ ====================
+  // ---------- Helpers สำหรับ Hash รหัสผ่าน ----------
+  Uint8List _generateSalt([int length = 16]) {
+    final r = Random.secure();
+    return Uint8List.fromList(List<int>.generate(length, (_) => r.nextInt(256)));
+  }
+
+  String _hashPassword(String password, Uint8List salt, {int iterations = 10000}) {
+    var mac = Hmac(sha256, salt);
+    var bytes = mac.convert(utf8.encode(password)).bytes;
+    for (var i = 1; i < iterations; i++) {
+      mac = Hmac(sha256, salt);
+      bytes = mac.convert(bytes).bytes;
+    }
+    return base64Encode(bytes);
+  }
+  // --------------------------------------------------
+
+  // เลือกรูป
   Future<void> _pickImage() async {
     try {
-      final xFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 75,
-      );
-
+      final xFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
       if (xFile == null) return;
 
       final fileExtension = xFile.path.split('.').last.toLowerCase();
@@ -83,10 +95,13 @@ class _RegisterRiderState extends State<RegisterRider> {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
   }
-  // =======================================================================
 
-  // ==================== ฟังก์ชันอัปโหลดไปยัง Custom Server ====================
-  Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, String fileExtension) async {
+  // อัปโหลดรูปไป Custom Server
+  Future<String?> _uploadProfileToCustomServer(
+    String uid,
+    Uint8List imageBytes,
+    String fileExtension,
+  ) async {
     final uri = Uri.parse('${Config.baseUrl}/upload');
     final request = http.MultipartRequest('POST', uri);
     final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
@@ -99,17 +114,16 @@ class _RegisterRiderState extends State<RegisterRider> {
     );
 
     request.files.add(file);
+
     try {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      print('Server Status Code: ${response.statusCode}');
-      print('Server Response Body: ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = json.decode(response.body);
         final receivedFilename = responseData['filename'];
         if (receivedFilename != null) {
           final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
-          print('อัปโหลดสำเร็จ! URL: $imageUrl');
           return imageUrl;
         } else {
           _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
@@ -124,9 +138,8 @@ class _RegisterRiderState extends State<RegisterRider> {
       return null;
     }
   }
-  // =======================================================================
 
-  // ==================== แก้ไขฟังก์ชันการสมัครสมาชิก ====================
+  // สมัครสมาชิก + เขียน Firestore (เพิ่ม Hash)
   Future<void> _onRegisterPressed() async {
     if (_submitting) return;
 
@@ -140,7 +153,7 @@ class _RegisterRiderState extends State<RegisterRider> {
       _showSnack('กรอกข้อมูลให้ครบทุกช่อง');
       return;
     }
-     if (_imageBytes == null) {
+    if (_imageBytes == null) {
       _showSnack('กรุณาเลือกรูปโปรไฟล์');
       return;
     }
@@ -155,48 +168,54 @@ class _RegisterRiderState extends State<RegisterRider> {
 
     setState(() => _submitting = true);
     try {
+      // 1) สร้างผู้ใช้ใน Firebase Auth (Auth เก็บรหัสผ่านอย่างปลอดภัยแล้ว)
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final uid = cred.user!.uid;
 
-      // --- เรียกใช้ฟังก์ชันอัปโหลดไปยัง Server ของเรา ---
+      // 2) อัปโหลดรูปไปเซิร์ฟเวอร์
       String? url;
       if (_imageBytes != null && _imageExtension != null) {
         url = await _uploadProfileToCustomServer(uid, _imageBytes!, _imageExtension!);
       }
-      // --- สิ้นสุดการเรียกใช้ ---
 
+      // 3) สร้าง salt + hash สำหรับเก็บใน riders (เพื่ออ้างอิง/ตรวจสอบภายหลัง ไม่ใช้แทน Auth)
+      final salt = _generateSalt(16);
+      final passwordHash = _hashPassword(password, salt, iterations: 10000);
+
+      // 4) บันทึกข้อมูล rider (ไม่มีการเก็บรหัสผ่านดิบ)
       await FirebaseFirestore.instance.collection('riders').doc(uid).set({
         'user_id': uid,
+        'auth_uid': uid,
         'name': name,
         'rider_email': email,
         'phone_number': phone,
         'license_plate': plate,
-        'vehicle_image': url, // <-- บันทึก URL ที่ได้จาก Server
+        'vehicle_image': url,
         'is_available': false,
         'current_latitude': null,
         'current_longitude': null,
+        'password_hash': passwordHash,
         'created_at': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
       if (!mounted) return;
       _showSnack('สมัครสมาชิกสำเร็จ', success: true);
-      
-      // กลับไปหน้า Login
+
+      // กลับหน้า Login
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
+        MaterialPageRoute(builder: (_) => const LoginPage()),
         (route) => false,
       );
-
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
-        'invalid-email' => 'รูปแบบอีเมลไม่ถูกต้อง',
-        'weak-password' => 'รหัสผ่านไม่ปลอดภัย (อย่างน้อย 6 ตัวอักษร)',
-        _ => 'สมัครไม่สำเร็จ: ${e.message ?? e.code}',
+        'invalid-email'       => 'รูปแบบอีเมลไม่ถูกต้อง',
+        'weak-password'       => 'รหัสผ่านไม่ปลอดภัย (อย่างน้อย 6 ตัวอักษร)',
+        _                     => 'สมัครไม่สำเร็จ: ${e.message ?? e.code}',
       };
       _showSnack(msg);
     } catch (e) {
@@ -205,12 +224,10 @@ class _RegisterRiderState extends State<RegisterRider> {
       if (mounted) setState(() => _submitting = false);
     }
   }
-  // =======================================================================
-
 
   @override
   Widget build(BuildContext context) {
-    // UI ทั้งหมดเหมือนเดิม ไม่มีการเปลี่ยนแปลง
+    // ✅ UI เดิมทั้งหมด
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -230,13 +247,8 @@ class _RegisterRiderState extends State<RegisterRider> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 8),
-              const Text(
-                'สมัครสมาชิก',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                  color: Colors.black,
-                ),
+              const Text('สมัครสมาชิก',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.black),
               ),
               const SizedBox(height: 20),
               Padding(
@@ -248,22 +260,15 @@ class _RegisterRiderState extends State<RegisterRider> {
                         onPressed: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterUser(),
-                            ),
+                            MaterialPageRoute(builder: (_) => const RegisterUser()),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text(
-                          'ผู้ใช้ระบบ',
-                          style: TextStyle(color: Colors.black, fontSize: 16),
-                        ),
+                        child: const Text('ผู้ใช้ระบบ', style: TextStyle(color: Colors.black, fontSize: 16)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -278,10 +283,7 @@ class _RegisterRiderState extends State<RegisterRider> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text(
-                          'ไรเดอร์',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
+                        child: const Text('ไรเดอร์', style: TextStyle(color: Colors.white, fontSize: 16)),
                       ),
                     ),
                   ],
@@ -303,74 +305,30 @@ class _RegisterRiderState extends State<RegisterRider> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(60.0),
                     child: _imageBytes != null
-                        ? Image.memory(
-                            _imageBytes!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                          )
+                        ? Image.memory(_imageBytes!, width: 120, height: 120, fit: BoxFit.cover)
                         : Container(
-                            width: 120,
-                            height: 120,
-                            color: Colors.grey[300],
-                            child: const Icon(
-                              Icons.person,
-                              size: 60,
-                              color: Colors.white,
-                            ),
+                            width: 120, height: 120, color: Colors.grey[300],
+                            child: const Icon(Icons.person, size: 60, color: Colors.white),
                           ),
                   ),
                   Container(
                     padding: const EdgeInsets.all(4.0),
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.add,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                    child: const Icon(Icons.add, color: Colors.white, size: 20),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
-            _buildTextField(
-              hintText: 'ชื่อ-สกุล',
-              icon: Icons.person_outline,
-              controller: _nameCtl,
-              textInputAction: TextInputAction.next,
-            ),
+            _buildTextField(hintText: 'ชื่อ-สกุล', icon: Icons.person_outline, controller: _nameCtl, textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildTextField(
-              hintText: 'อีเมล',
-              icon: Icons.mail_outline,
-              controller: _emailCtl,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-            ),
+            _buildTextField(hintText: 'อีเมล', icon: Icons.mail_outline, controller: _emailCtl, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildTextField(
-              hintText: 'หมายเลขโทรศัพท์',
-              icon: Icons.phone_outlined,
-              controller: _phoneCtl,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.next,
-            ),
+            _buildTextField(hintText: 'หมายเลขโทรศัพท์', icon: Icons.phone_outlined, controller: _phoneCtl, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildTextField(
-              hintText: 'ทะเบียนรถ',
-              icon: Icons.directions_car_outlined,
-              controller: _plateCtl,
-              textInputAction: TextInputAction.next,
-            ),
+            _buildTextField(hintText: 'ทะเบียนรถ', icon: Icons.directions_car_outlined, controller: _plateCtl, textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildPasswordField(
-              hintText: 'Password',
-              icon: Icons.lock_outline,
-              controller: _passwordCtl,
-            ),
+            _buildPasswordField(hintText: 'Password', icon: Icons.lock_outline, controller: _passwordCtl),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -378,23 +336,12 @@ class _RegisterRiderState extends State<RegisterRider> {
                 onPressed: _onRegisterPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: RegisterRider.kYellow,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
                   padding: const EdgeInsets.symmetric(vertical: 18.0),
                 ),
                 child: _submitting
-                    ? const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                      )
-                    : const Text(
-                        'สมัครสมาชิก',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    ? const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.black))
+                    : const Text('สมัครสมาชิก', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -403,6 +350,7 @@ class _RegisterRiderState extends State<RegisterRider> {
     );
   }
 
+  // --- Widgets ย่อย (UI เดิม) ---
   Widget _buildTextField({
     required String hintText,
     IconData? icon,
@@ -417,36 +365,22 @@ class _RegisterRiderState extends State<RegisterRider> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: RegisterRider.kGrey),
-        prefixIcon: icon != null
-            ? Icon(icon, color: RegisterRider.kGrey)
-            : null,
+        prefixIcon: icon != null ? Icon(icon, color: RegisterRider.kGrey) : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(
-            color: RegisterRider.kYellow,
-            width: 2.0,
-          ),
+          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(
-            color: RegisterRider.kYellow,
-            width: 2.0,
-          ),
+          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(
-            color: RegisterRider.kYellow,
-            width: 2.0,
-          ),
+          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 18.0,
-          horizontal: 16.0,
-        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),
     );
   }
@@ -462,40 +396,23 @@ class _RegisterRiderState extends State<RegisterRider> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: RegisterRider.kGrey),
-        prefixIcon: icon != null
-            ? Icon(icon, color: RegisterRider.kGrey)
-            : null,
-        suffixIcon: const Icon(
-          Icons.remove_red_eye_outlined,
-          color: RegisterRider.kGrey,
-        ),
+        prefixIcon: icon != null ? Icon(icon, color: RegisterRider.kGrey) : null,
+        suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: RegisterRider.kGrey),
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(
-            color: RegisterRider.kYellow,
-            width: 2.0,
-          ),
+          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(
-            color: RegisterRider.kYellow,
-            width: 2.0,
-          ),
+          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(
-            color: RegisterRider.kYellow,
-            width: 2.0,
-          ),
+          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 18.0,
-          horizontal: 16.0,
-        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),
     );
   }

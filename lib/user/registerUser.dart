@@ -1,5 +1,3 @@
-// registerUser.dart
-
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:delivery/config/config_Img.dart';
@@ -12,7 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-
+import 'package:crypto/crypto.dart';
 
 class RegisterUser extends StatefulWidget {
   const RegisterUser({super.key});
@@ -26,14 +24,14 @@ class _RegisterUserState extends State<RegisterUser> {
   final _nameCtl = TextEditingController();
   final _emailCtl = TextEditingController();
   final _phoneCtl = TextEditingController();
-  final _addressCtl = TextEditingController(); // เก็บชื่อที่อยู่จาก MapPicker
+  final _addressCtl = TextEditingController(); // ชื่อที่อยู่จาก MapPicker (ใช้เติมอัตโนมัติถ้ามี)
   final _passwordCtl = TextEditingController();
-  final _gpsCtl = TextEditingController(); // รูปแบบ "lat,lng"
+  final _gpsCtl = TextEditingController(); // รูปแบบ "ที่อยู่ (lat, lng)" จาก MapPicker
 
   // image state
   final _picker = ImagePicker();
   Uint8List? _imageBytes; // preview
-  String? _imageExtension; // <-- เพิ่มตัวแปรสำหรับเก็บนามสกุลไฟล์
+  String? _imageExtension; // นามสกุลไฟล์รูป
 
   bool _submitting = false;
 
@@ -50,103 +48,82 @@ class _RegisterUserState extends State<RegisterUser> {
 
   void _showSnack(String msg, {bool ok = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: ok ? Colors.green : Colors.red,
-      ),
+      SnackBar(content: Text(msg), backgroundColor: ok ? Colors.green : Colors.red),
     );
   }
 
-  // ==================== โค้ดส่วนที่แก้ไขตามที่คุณต้องการ ====================
+  // -------------------- Password hashing (hash only, no salt) --------------------
+  String _hashPasswordOnly(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return base64Encode(digest.bytes); // เก็บเป็น base64 อ่านง่าย
+  }
+  // ------------------------------------------------------------------------------
+
   Future<void> _pickImage() async {
     try {
-      final xFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 75, // สำหรับ jpeg/jpg
-      );
-
+      final xFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
       if (xFile == null) return;
 
-      // --- ส่วนที่แก้ไข ---
-      // 1. ดึงนามสกุลไฟล์จาก path และแปลงเป็นตัวพิมพ์เล็ก
       final fileExtension = xFile.path.split('.').last.toLowerCase();
-
-      // 2. ตรวจสอบว่าเป็นนามสกุลไฟล์ที่รองรับหรือไม่
       if (fileExtension != 'jpg' && fileExtension != 'jpeg' && fileExtension != 'png') {
         _showSnack('ไม่รองรับไฟล์ประเภทนี้ (รองรับเฉพาะ jpg, jpeg, png)');
         return;
       }
-      // --- สิ้นสุดส่วนที่แก้ไข ---
 
       final bytes = await xFile.readAsBytes();
       if (!mounted) return;
-
       setState(() {
         _imageBytes = bytes;
-        _imageExtension = fileExtension; // 3. บันทึกนามสกุลไฟล์ลงใน state
+        _imageExtension = fileExtension;
       });
     } catch (e) {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
   }
-  // =======================================================================
 
-  // ==================== ฟังก์ชันอัปโหลดไปยัง Custom Server ====================
-  // *** อย่าลืมแก้ไขฟังก์ชันนี้ให้รับ fileExtension ไปใช้งานด้วยนะครับ ***
-  // (ในไฟล์ registerUser.dart และ registerRider.dart)
+  // อัปโหลดรูปไป custom server
+  Future<String?> _uploadProfileToCustomServer(
+    String uid,
+    Uint8List imageBytes,
+    String fileExtension,
+  ) async {
+    final uri = Uri.parse('${Config.baseUrl}/upload');
+    final request = http.MultipartRequest('POST', uri);
 
-// (ในไฟล์ registerUser.dart และ registerRider.dart)
+    final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
+    final file = http.MultipartFile.fromBytes(
+      'file',
+      imageBytes,
+      filename: '$uid.$fileExtension',
+      contentType: MediaType('image', contentType),
+    );
 
-Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, String fileExtension) async {
-  // ทำให้ URL ที่เรียกคือ https://.../upload
-  final uri = Uri.parse('${Config.baseUrl}/upload'); 
+    request.files.add(file);
 
-  final request = http.MultipartRequest('POST', uri);
+    try {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-  final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
-
-  final file = http.MultipartFile.fromBytes(
-    'file', 
-    imageBytes,
-    filename: '$uid.$fileExtension',
-    contentType: MediaType('image', contentType),
-  );
-
-  request.files.add(file);
-  
-  try {
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    print('Server Status Code: ${response.statusCode}');
-    print('Server Response Body: ${response.body}');
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final responseData = json.decode(response.body);
-      final receivedFilename = responseData['filename'];
-
-      if (receivedFilename != null) {
-        // ============= จุดที่แก้ไข =============
-        // สร้าง URL ที่สมบูรณ์โดยมี /upload อยู่ด้วย
-        final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
-        // =====================================
-        
-        print('อัปโหลดสำเร็จ! URL: $imageUrl');
-        return imageUrl; // ส่ง URL เต็มกลับไปบันทึก
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = json.decode(response.body);
+        final receivedFilename = responseData['filename'];
+        if (receivedFilename != null) {
+          final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
+          return imageUrl;
+        } else {
+          _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
+          return null;
+        }
       } else {
-        _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
+        _showSnack('อัปโหลดรูปไม่สำเร็จ: Server error ${response.statusCode}');
         return null;
       }
-    } else {
-      _showSnack('อัปโหลดรูปไม่สำเร็จ: Server error ${response.statusCode}');
+    } catch (e) {
+      _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
       return null;
     }
-  } catch (e) {
-    _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
-    return null;
   }
-}
-  // =======================================================================
 
   ({String? place, double? lat, double? lng}) _parseGps(String raw) {
     try {
@@ -188,17 +165,23 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
 
     setState(() => _submitting = true);
     try {
+      // สมัคร Auth (ล็อกอินจริงใช้ Firebase Auth)
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final uid = cred.user!.uid;
 
+      // อัปโหลดรูป (ถ้ามี)
       String? url;
       if (_imageBytes != null && _imageExtension != null) {
         url = await _uploadProfileToCustomServer(uid, _imageBytes!, _imageExtension!);
       }
 
+      // สร้าง hash อย่างเดียว (ไม่มี salt)
+      final passwordHash = _hashPasswordOnly(password);
+
+      // เขียน Firestore (ไม่มีการเก็บรหัสผ่านดิบ, ไม่มี salt)
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
           'user_id': uid,
@@ -206,17 +189,21 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
           'user_email': email,
           'phone_number': phone,
           'profile_image': url,
-          'password': password,
           'auth_uid': uid,
-        });
+          'password_hash': passwordHash,
+          'created_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
+        // ที่อยู่จาก GPS field
         final gps = _parseGps(gpsRaw);
         if (gps.lat != null && gps.lng != null && gps.place != null) {
           await FirebaseFirestore.instance.collection('addresses').add({
             'owner_user_id': uid,
             'address_text': gps.place,
             'gps': {'lat': gps.lat, 'lng': gps.lng},
+            'created_at': FieldValue.serverTimestamp(),
           });
+
           await FirebaseFirestore.instance.collection('users').doc(uid).update({
             'addresses': FieldValue.arrayUnion([
               {'address_text': gps.place},
@@ -227,7 +214,6 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
 
       if (!mounted) return;
       _showSnack('สมัครสมาชิกสำเร็จ', ok: true);
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -272,7 +258,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
     }
   }
 
-  // ===================== UI (ไม่เปลี่ยนแปลง) =====================
+  // ===================== UI (ตามเดิม) =====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -293,10 +279,8 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'สมัครสมาชิก',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-              ),
+              const Text('สมัครสมาชิก',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
               const SizedBox(height: 20),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -312,10 +296,8 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text(
-                          'ผู้ใช้ระบบ',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
+                        child: const Text('ผู้ใช้ระบบ',
+                            style: TextStyle(color: Colors.white, fontSize: 16)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -337,10 +319,8 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text(
-                          'ไรเดอร์',
-                          style: TextStyle(color: Colors.black, fontSize: 16),
-                        ),
+                        child: const Text('ไรเดอร์',
+                            style: TextStyle(color: Colors.black, fontSize: 16)),
                       ),
                     ),
                   ],
@@ -354,6 +334,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           children: [
+            // รูปโปรไฟล์
             Stack(
               alignment: Alignment.bottomRight,
               children: [
@@ -365,34 +346,18 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
                       ClipRRect(
                         borderRadius: BorderRadius.circular(60.0),
                         child: _imageBytes != null
-                            ? Image.memory(
-                                _imageBytes!,
-                                width: 120,
-                                height: 120,
-                                fit: BoxFit.cover,
-                              )
+                            ? Image.memory(_imageBytes!, width: 120, height: 120, fit: BoxFit.cover)
                             : Container(
                                 width: 120,
                                 height: 120,
                                 color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.white,
-                                ),
+                                child: const Icon(Icons.person, size: 60, color: Colors.white),
                               ),
                       ),
                       Container(
                         padding: const EdgeInsets.all(4.0),
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.add,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                        decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                        child: const Icon(Icons.add, color: Colors.white, size: 20),
                       ),
                     ],
                   ),
@@ -400,6 +365,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
               ],
             ),
             const SizedBox(height: 30),
+
             _buildTextField(
               hintText: 'ชื่อ-สกุล',
               icon: Icons.person_outline,
@@ -436,6 +402,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
               isGpsField: true,
             ),
             const SizedBox(height: 30),
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -451,11 +418,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
                     ? const CircularProgressIndicator(color: Colors.black)
                     : const Text(
                         'สมัครสมาชิก',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
               ),
             ),
@@ -465,7 +428,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
     );
   }
 
-  // -------------------- widgets (ไม่เปลี่ยนแปลง) --------------------
+  // -------------------- widgets --------------------
   Widget _buildTextField({
     required String hintText,
     IconData? icon,
@@ -483,9 +446,7 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null
-            ? Icon(icon, color: const Color(0xFF5B5B5B))
-            : null,
+        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF5B5B5B)) : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
@@ -500,51 +461,42 @@ Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, S
           borderRadius: BorderRadius.circular(10.0),
           borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 18.0,
-          horizontal: 16.0,
-        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),
     );
   }
 
   Widget _buildPasswordField({
-    required String hintText,
-    IconData? icon,
-    TextEditingController? controller,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: true,
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null
-            ? Icon(icon, color: const Color(0xFF5B5B5B))
-            : null,
-        suffixIcon: const Icon(
-          Icons.remove_red_eye_outlined,
-          color: Color(0xFF5B5B5B),
-        ),
-        filled: true,
-        fillColor: const Color(0xFFEFEFEF),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 18.0,
-          horizontal: 16.0,
-        ),
+  required String hintText,
+  IconData? icon,
+  TextEditingController? controller, 
+}) {
+  return TextFormField(
+    controller: controller ?? _passwordCtl, 
+    obscureText: true,
+    decoration: InputDecoration(
+      hintText: hintText,
+      hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
+      prefixIcon: icon != null
+          ? Icon(icon, color: const Color(0xFF5B5B5B))
+          : null,
+      suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF5B5B5B)),
+      filled: true,
+      fillColor: const Color(0xFFEFEFEF),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
       ),
-    );
-  }
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+    ),
+  );
+}
 }

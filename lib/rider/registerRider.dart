@@ -1,10 +1,16 @@
+// registerRider.dart
+
+import 'dart:convert';
 import 'dart:typed_data';
+import 'package:delivery/config/config_Img.dart';
+import 'package:delivery/user/login.dart';
 import 'package:delivery/user/registerUser.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 class RegisterRider extends StatefulWidget {
   const RegisterRider({super.key});
@@ -27,7 +33,7 @@ class _RegisterRiderState extends State<RegisterRider> {
   // image state
   final _picker = ImagePicker();
   Uint8List? _imageBytes; // preview
-  String? _uploadedImageUrl; // storage url
+  String? _imageExtension; // <-- เพิ่มตัวแปรสำหรับเก็บนามสกุลไฟล์
 
   bool _submitting = false;
 
@@ -41,60 +47,86 @@ class _RegisterRiderState extends State<RegisterRider> {
     super.dispose();
   }
 
-  // //คำสั่งที่ใช้สำหรับเลือกไฟล์รูปภาพจากเครื่อง
+  void _showSnack(String message, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
 
+  // ==================== แก้ไขฟังก์ชันเลือกรูปภาพ ====================
   Future<void> _pickImage() async {
     try {
-      print('กำลังจะเปิดหน้าจอเลือกรูปภาพ...');
-      final x = await _picker.pickImage(
+      final xFile = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 75,
       );
 
-      // ตรวจสอบว่าผู้ใช้ได้เลือกรูปภาพหรือไม่
-      if (x == null) {
-        print('ผู้ใช้ยกเลิกการเลือกรูปภาพ.');
+      if (xFile == null) return;
+
+      final fileExtension = xFile.path.split('.').last.toLowerCase();
+      if (fileExtension != 'jpg' && fileExtension != 'jpeg' && fileExtension != 'png') {
+        _showSnack('ไม่รองรับไฟล์ประเภทนี้ (รองรับเฉพาะ jpg, jpeg, png)');
         return;
       }
 
-      print('เลือกรูปภาพสำเร็จ: ${x.name}');
-
-      final bytes = await x.readAsBytes();
+      final bytes = await xFile.readAsBytes();
       if (!mounted) return;
-
-      // ตรวจสอบว่าได้ข้อมูลรูปภาพมาหรือไม่
-      if (bytes.isNotEmpty) {
-        print('แปลงรูปภาพเป็น bytes สำเร็จ! ขนาด: ${bytes.length} bytes');
-      } else {
-        print('แปลงรูปภาพเป็น bytes ไม่สำเร็จ.');
-      }
 
       setState(() {
         _imageBytes = bytes;
+        _imageExtension = fileExtension;
       });
     } catch (e) {
-      print('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e');
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
   }
+  // =======================================================================
 
-  // ----- upload to Storage: rider_vehicles/<uid>.jpg -----
-  Future<String?> _uploadVehicleImage(String uid) async {
-    if (_imageBytes == null) return null;
+  // ==================== ฟังก์ชันอัปโหลดไปยัง Custom Server ====================
+  Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, String fileExtension) async {
+    final uri = Uri.parse('${Config.baseUrl}/upload');
+    final request = http.MultipartRequest('POST', uri);
+    final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
+
+    final file = http.MultipartFile.fromBytes(
+      'file',
+      imageBytes,
+      filename: '$uid.$fileExtension',
+      contentType: MediaType('image', contentType),
+    );
+
+    request.files.add(file);
     try {
-      final ref = FirebaseStorage.instance.ref('rider_vehicles/$uid.jpg');
-      await ref.putData(
-        _imageBytes!,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      return await ref.getDownloadURL();
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      print('Server Status Code: ${response.statusCode}');
+      print('Server Response Body: ${response.body}');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = json.decode(response.body);
+        final receivedFilename = responseData['filename'];
+        if (receivedFilename != null) {
+          final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
+          print('อัปโหลดสำเร็จ! URL: $imageUrl');
+          return imageUrl;
+        } else {
+          _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
+          return null;
+        }
+      } else {
+        _showSnack('อัปโหลดรูปไม่สำเร็จ: Server error ${response.statusCode}');
+        return null;
+      }
     } catch (e) {
       _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
       return null;
     }
   }
+  // =======================================================================
 
-  // ----- register rider (Auth + Firestore:riders/{uid}) -----
+  // ==================== แก้ไขฟังก์ชันการสมัครสมาชิก ====================
   Future<void> _onRegisterPressed() async {
     if (_submitting) return;
 
@@ -104,12 +136,12 @@ class _RegisterRiderState extends State<RegisterRider> {
     final plate = _plateCtl.text.trim();
     final password = _passwordCtl.text;
 
-    if (name.isEmpty ||
-        email.isEmpty ||
-        phone.isEmpty ||
-        plate.isEmpty ||
-        password.isEmpty) {
+    if ([name, email, phone, plate, password].any((v) => v.isEmpty)) {
       _showSnack('กรอกข้อมูลให้ครบทุกช่อง');
+      return;
+    }
+     if (_imageBytes == null) {
+      _showSnack('กรุณาเลือกรูปโปรไฟล์');
       return;
     }
     if (!email.contains('@')) {
@@ -123,34 +155,42 @@ class _RegisterRiderState extends State<RegisterRider> {
 
     setState(() => _submitting = true);
     try {
-      // 1) สร้างผู้ใช้
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final uid = cred.user!.uid;
 
-      // 2) อัปโหลดรูป (ถ้ามี)
-      final url = await _uploadVehicleImage(uid);
-      _uploadedImageUrl = url;
+      // --- เรียกใช้ฟังก์ชันอัปโหลดไปยัง Server ของเรา ---
+      String? url;
+      if (_imageBytes != null && _imageExtension != null) {
+        url = await _uploadProfileToCustomServer(uid, _imageBytes!, _imageExtension!);
+      }
+      // --- สิ้นสุดการเรียกใช้ ---
 
-      // 3) เขียนโปรไฟล์ไรเดอร์
       await FirebaseFirestore.instance.collection('riders').doc(uid).set({
         'user_id': uid,
         'name': name,
-        'rider_email': email, // << เปลี่ยนตาม ER
+        'rider_email': email,
         'phone_number': phone,
         'license_plate': plate,
-        'vehicle_image': url, // << เปลี่ยนตาม ER
+        'vehicle_image': url, // <-- บันทึก URL ที่ได้จาก Server
         'is_available': false,
         'current_latitude': null,
         'current_longitude': null,
         'created_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      });
 
       if (!mounted) return;
       _showSnack('สมัครสมาชิกสำเร็จ', success: true);
-      Navigator.pop(context);
+      
+      // กลับไปหน้า Login
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false,
+      );
+
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
@@ -165,22 +205,12 @@ class _RegisterRiderState extends State<RegisterRider> {
       if (mounted) setState(() => _submitting = false);
     }
   }
+  // =======================================================================
 
-  void _showSnack(String message, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
-  // ========================= UI เดิม =========================
-  static const kYellow = RegisterRider.kYellow;
-  static const kGrey = RegisterRider.kGrey;
 
   @override
   Widget build(BuildContext context) {
+    // UI ทั้งหมดเหมือนเดิม ไม่มีการเปลี่ยนแปลง
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -190,7 +220,7 @@ class _RegisterRiderState extends State<RegisterRider> {
         elevation: 0,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
-            color: kYellow,
+            color: RegisterRider.kYellow,
             borderRadius: BorderRadius.only(
               bottomLeft: Radius.circular(30),
               bottomRight: Radius.circular(30),
@@ -215,7 +245,7 @@ class _RegisterRiderState extends State<RegisterRider> {
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed:  () {
+                        onPressed: () {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
@@ -236,7 +266,6 @@ class _RegisterRiderState extends State<RegisterRider> {
                         ),
                       ),
                     ),
-
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton(
@@ -262,60 +291,51 @@ class _RegisterRiderState extends State<RegisterRider> {
           ),
         ),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           children: [
-            // avatar (เพิ่มเลือก/preview รูป แต่ UI เดิม)
-            Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                GestureDetector(
-                  onTap: _pickImage, // ย้าย GestureDetector มาคลุมทั้ง Stack
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(60.0),
-                        child: _imageBytes != null
-                            ? Image.memory(
-                                _imageBytes!,
-                                width: 120,
-                                height: 120,
-                                fit: BoxFit.cover,
-                              )
-                            : Container(
-                                width: 120,
-                                height: 120,
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                      // ส่วนของไอคอน add ยังคงอยู่
-                      Container(
-                        padding: const EdgeInsets.all(4.0),
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.add,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ],
+            GestureDetector(
+              onTap: _pickImage,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(60.0),
+                    child: _imageBytes != null
+                        ? Image.memory(
+                            _imageBytes!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            width: 120,
+                            height: 120,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
-                ),
-              ],
+                  Container(
+                    padding: const EdgeInsets.all(4.0),
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 30),
-
             _buildTextField(
               hintText: 'ชื่อ-สกุล',
               icon: Icons.person_outline,
@@ -352,26 +372,29 @@ class _RegisterRiderState extends State<RegisterRider> {
               controller: _passwordCtl,
             ),
             const SizedBox(height: 16),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _onRegisterPressed,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: kYellow,
+                  backgroundColor: RegisterRider.kYellow,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 18.0),
                 ),
-                child: Text(
-                  _submitting ? 'กำลังสมัคร...' : 'สมัครสมาชิก',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _submitting
+                    ? const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      )
+                    : const Text(
+                        'สมัครสมาชิก',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -380,7 +403,6 @@ class _RegisterRiderState extends State<RegisterRider> {
     );
   }
 
-  // ---- widgets เดิม ----
   Widget _buildTextField({
     required String hintText,
     IconData? icon,

@@ -1,11 +1,9 @@
-// lib/map_picker_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart'; // <-- import แค่ครั้งเดียว
+import 'package:geocoding/geocoding.dart';
 
 class MapPickerScreen extends StatefulWidget {
   const MapPickerScreen({super.key});

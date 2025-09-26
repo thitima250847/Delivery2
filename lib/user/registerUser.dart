@@ -1,15 +1,18 @@
 // registerUser.dart
 
+import 'dart:convert';
 import 'dart:typed_data';
-
+import 'package:delivery/config/config_Img.dart';
 import 'package:delivery/map/map_register.dart';
 import 'package:delivery/rider/registerRider.dart';
 import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+
 
 class RegisterUser extends StatefulWidget {
   const RegisterUser({super.key});
@@ -30,6 +33,7 @@ class _RegisterUserState extends State<RegisterUser> {
   // image state
   final _picker = ImagePicker();
   Uint8List? _imageBytes; // preview
+  String? _imageExtension; // <-- เพิ่มตัวแปรสำหรับเก็บนามสกุลไฟล์
 
   bool _submitting = false;
 
@@ -53,42 +57,97 @@ class _RegisterUserState extends State<RegisterUser> {
     );
   }
 
+  // ==================== โค้ดส่วนที่แก้ไขตามที่คุณต้องการ ====================
   Future<void> _pickImage() async {
     try {
-      final x = await _picker.pickImage(
+      final xFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 75,
+        imageQuality: 75, // สำหรับ jpeg/jpg
       );
 
-      if (x == null) return;
+      if (xFile == null) return;
 
-      final bytes = await x.readAsBytes();
+      // --- ส่วนที่แก้ไข ---
+      // 1. ดึงนามสกุลไฟล์จาก path และแปลงเป็นตัวพิมพ์เล็ก
+      final fileExtension = xFile.path.split('.').last.toLowerCase();
+
+      // 2. ตรวจสอบว่าเป็นนามสกุลไฟล์ที่รองรับหรือไม่
+      if (fileExtension != 'jpg' && fileExtension != 'jpeg' && fileExtension != 'png') {
+        _showSnack('ไม่รองรับไฟล์ประเภทนี้ (รองรับเฉพาะ jpg, jpeg, png)');
+        return;
+      }
+      // --- สิ้นสุดส่วนที่แก้ไข ---
+
+      final bytes = await xFile.readAsBytes();
       if (!mounted) return;
 
       setState(() {
         _imageBytes = bytes;
+        _imageExtension = fileExtension; // 3. บันทึกนามสกุลไฟล์ลงใน state
       });
     } catch (e) {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
   }
+  // =======================================================================
 
-  Future<String?> _uploadProfile(String uid) async {
-    if (_imageBytes == null) return null;
-    try {
-      final ref = FirebaseStorage.instance.ref('user_profiles/$uid.jpg');
-      await ref.putData(
-        _imageBytes!,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      return await ref.getDownloadURL();
-    } catch (e) {
-      _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
+  // ==================== ฟังก์ชันอัปโหลดไปยัง Custom Server ====================
+  // *** อย่าลืมแก้ไขฟังก์ชันนี้ให้รับ fileExtension ไปใช้งานด้วยนะครับ ***
+  // (ในไฟล์ registerUser.dart และ registerRider.dart)
+
+// (ในไฟล์ registerUser.dart และ registerRider.dart)
+
+Future<String?> _uploadProfileToCustomServer(String uid, Uint8List imageBytes, String fileExtension) async {
+  // ทำให้ URL ที่เรียกคือ https://.../upload
+  final uri = Uri.parse('${Config.baseUrl}/upload'); 
+
+  final request = http.MultipartRequest('POST', uri);
+
+  final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
+
+  final file = http.MultipartFile.fromBytes(
+    'file', 
+    imageBytes,
+    filename: '$uid.$fileExtension',
+    contentType: MediaType('image', contentType),
+  );
+
+  request.files.add(file);
+  
+  try {
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    print('Server Status Code: ${response.statusCode}');
+    print('Server Response Body: ${response.body}');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final responseData = json.decode(response.body);
+      final receivedFilename = responseData['filename'];
+
+      if (receivedFilename != null) {
+        // ============= จุดที่แก้ไข =============
+        // สร้าง URL ที่สมบูรณ์โดยมี /upload อยู่ด้วย
+        final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
+        // =====================================
+        
+        print('อัปโหลดสำเร็จ! URL: $imageUrl');
+        return imageUrl; // ส่ง URL เต็มกลับไปบันทึก
+      } else {
+        _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
+        return null;
+      }
+    } else {
+      _showSnack('อัปโหลดรูปไม่สำเร็จ: Server error ${response.statusCode}');
       return null;
     }
+  } catch (e) {
+    _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
+    return null;
   }
+}
+  // =======================================================================
 
-  // แยกชื่อสถานที่และพิกัดจาก String "ชื่อสถานที่ (lat, lng)"
   ({String? place, double? lat, double? lng}) _parseGps(String raw) {
     try {
       final regex = RegExp(r'^(.*)\s*\(([-\d.]+),\s*([-\d.]+)\)$');
@@ -111,7 +170,6 @@ class _RegisterUserState extends State<RegisterUser> {
     final name = _nameCtl.text.trim();
     final email = _emailCtl.text.trim();
     final phone = _phoneCtl.text.trim();
-    final addressText = _addressCtl.text.trim();
     final password = _passwordCtl.text;
     final gpsRaw = _gpsCtl.text.trim();
 
@@ -136,7 +194,10 @@ class _RegisterUserState extends State<RegisterUser> {
       );
       final uid = cred.user!.uid;
 
-      final url = await _uploadProfile(uid);
+      String? url;
+      if (_imageBytes != null && _imageExtension != null) {
+        url = await _uploadProfileToCustomServer(uid, _imageBytes!, _imageExtension!);
+      }
 
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
@@ -151,14 +212,11 @@ class _RegisterUserState extends State<RegisterUser> {
 
         final gps = _parseGps(gpsRaw);
         if (gps.lat != null && gps.lng != null && gps.place != null) {
-          // เก็บลง collection addresses พร้อม user_id
           await FirebaseFirestore.instance.collection('addresses').add({
             'owner_user_id': uid,
             'address_text': gps.place,
             'gps': {'lat': gps.lat, 'lng': gps.lng},
           });
-
-          // เก็บใน users.addresses แค่ชื่อสถานที่
           await FirebaseFirestore.instance.collection('users').doc(uid).update({
             'addresses': FieldValue.arrayUnion([
               {'address_text': gps.place},
@@ -189,7 +247,6 @@ class _RegisterUserState extends State<RegisterUser> {
     }
   }
 
-  // -------------------- เลือก GPS จาก Map --------------------
   Future<void> _selectGpsFromMap() async {
     final result = await Navigator.push(
       context,
@@ -202,14 +259,11 @@ class _RegisterUserState extends State<RegisterUser> {
 
       if (pickedLocation != null) {
         setState(() {
-          // แสดงชื่อสถานที่พร้อมพิกัดใน TextField GPS
           if (pickedAddress != null && pickedAddress is String) {
             _gpsCtl.text =
                 '$pickedAddress (${pickedLocation.latitude}, ${pickedLocation.longitude})';
-            _addressCtl.text =
-                pickedAddress; // เก็บชื่อที่อยู่ไว้บันทึก Firestore
+            _addressCtl.text = pickedAddress;
           } else {
-            // ถ้าไม่มีชื่อสถานที่ แสดงแค่พิกัด
             _gpsCtl.text =
                 '${pickedLocation.latitude}, ${pickedLocation.longitude}';
           }
@@ -218,7 +272,7 @@ class _RegisterUserState extends State<RegisterUser> {
     }
   }
 
-  // ===================== UI =====================
+  // ===================== UI (ไม่เปลี่ยนแปลง) =====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -300,7 +354,6 @@ class _RegisterUserState extends State<RegisterUser> {
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           children: [
-            // รูปโปรไฟล์
             Stack(
               alignment: Alignment.bottomRight,
               children: [
@@ -347,7 +400,6 @@ class _RegisterUserState extends State<RegisterUser> {
               ],
             ),
             const SizedBox(height: 30),
-
             _buildTextField(
               hintText: 'ชื่อ-สกุล',
               icon: Icons.person_outline,
@@ -377,7 +429,6 @@ class _RegisterUserState extends State<RegisterUser> {
               controller: _passwordCtl,
             ),
             const SizedBox(height: 16),
-            // ช่อง GPS แทนที่อยู่
             _buildTextField(
               hintText: 'พิกัด GPS ของสถานที่รับสินค้า',
               icon: Icons.gps_fixed_outlined,
@@ -385,7 +436,6 @@ class _RegisterUserState extends State<RegisterUser> {
               isGpsField: true,
             ),
             const SizedBox(height: 30),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -415,7 +465,7 @@ class _RegisterUserState extends State<RegisterUser> {
     );
   }
 
-  // -------------------- widgets --------------------
+  // -------------------- widgets (ไม่เปลี่ยนแปลง) --------------------
   Widget _buildTextField({
     required String hintText,
     IconData? icon,

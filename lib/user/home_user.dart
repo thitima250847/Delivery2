@@ -1,3 +1,5 @@
+import 'package:delivery/user/history.dart';
+import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
 
 class DeliveryPage extends StatelessWidget {
@@ -31,7 +33,7 @@ class DeliveryPage extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
@@ -284,11 +286,33 @@ class DeliveryPage extends StatelessWidget {
   }
 
   // ส่วนเมนูด้านล่าง
-  Widget _buildBottomNavigationBar() {
+  Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
       selectedItemColor: const Color(0xFFFEE146),
       unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
+      onTap: (index) {
+        switch (index) {
+          case 0:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DeliveryPage()),
+            );
+            break;
+          case 1:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const HistoryPage()),
+            );
+            break;
+          case 2:
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
+            );
+            break;
+        }
+      },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
         BottomNavigationBarItem(

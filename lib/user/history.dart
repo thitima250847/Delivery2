@@ -1,3 +1,4 @@
+import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +41,7 @@ class HistoryPage extends StatelessWidget {
 
             // --- รายการประวัติ ---
             _buildHistoryCard(
+              context,
               senderLocation: 'คณะวิทยาการสารสนเทศ',
               senderName: 'Nitipong Boonprasert',
               recipientLocation: 'หอพักเรืองฤทธิ์เรสซิเดนซ์',
@@ -47,6 +49,7 @@ class HistoryPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildHistoryCard(
+              context,
               senderLocation: 'คณะวิทยาการสารสนเทศ',
               senderName: 'Nitipong Boonprasert',
               recipientLocation: 'หอพักเรืองฤทธิ์เรสซิเดนซ์',
@@ -54,6 +57,7 @@ class HistoryPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildHistoryCard(
+              context,
               senderLocation: 'คณะวิทยาการสารสนเทศ',
               senderName: 'Nitipong Boonprasert',
               recipientLocation: 'หอพักเรืองฤทธิ์เรสซิเดนซ์',
@@ -129,7 +133,8 @@ class HistoryPage extends StatelessWidget {
   }
 
   // --- ฟังก์ชันสำหรับสร้างการ์ดประวัติ ---
-  Widget _buildHistoryCard({
+  Widget _buildHistoryCard(
+    BuildContext context, {
     required String senderLocation,
     required String senderName,
     required String recipientLocation,
@@ -187,7 +192,14 @@ class HistoryPage extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DetailPage(),
+                        ),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFDE428),
                       shape: RoundedRectangleBorder(

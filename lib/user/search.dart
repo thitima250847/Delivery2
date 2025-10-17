@@ -1,3 +1,5 @@
+import 'package:delivery/user/home_user.dart';
+import 'package:delivery/user/senditem.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -10,11 +12,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Search UI Demo',
-      theme: ThemeData(
-        // ตั้งค่า font เริ่มต้นให้เข้ากับ UI
-        fontFamily: 'Prompt', // (หากคุณมี font นี้ในโปรเจกต์)
-      ),
+      title: 'Rider Home UI',
+      theme: ThemeData(fontFamily: 'Prompt'),
       debugShowCheckedModeBanner: false,
       home: const SearchRecipientScreen(),
     );
@@ -24,24 +23,24 @@ class MyApp extends StatelessWidget {
 class SearchRecipientScreen extends StatelessWidget {
   const SearchRecipientScreen({Key? key}) : super(key: key);
 
-  // กำหนดสีเหลืองหลักที่ใช้ในแอป
   static const Color primaryYellow = Color(0xFFFDE100);
 
   @override
   Widget build(BuildContext context) {
+    // <--- context ตัวนี้
     return Scaffold(
-      backgroundColor: Colors.white, // พื้นหลังสีขาว
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: primaryYellow,
-        elevation: 0, // ไม่มีเงาใต้ AppBar
-        // vvvv เพิ่มบรรทัดนี้เพื่อปรับความสูง vvvv
-        toolbarHeight: 90.0, // (ค่าปกติคือ 56.0)
-        // ^^^^ สามารถปรับตัวเลขนี้ได้ตามต้องการ ^^^^
+        elevation: 0,
+        toolbarHeight: 90.0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
-            // ใส่โค้ดสำหรับการย้อนกลับที่นี่
-            Navigator.of(context).pop();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DeliveryPage()),
+            );
           },
         ),
         title: const Text(
@@ -54,14 +53,8 @@ class SearchRecipientScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              Icons.account_circle,
-              color: Colors.grey[600], // สีไอคอนโปรไฟล์
-              size: 50,
-            ),
-            onPressed: () {
-              // ใส่โค้ดสำหรับเปิดหน้าโปรไฟล์
-            },
+            icon: Icon(Icons.account_circle, color: Colors.grey[600], size: 50),
+            onPressed: () {},
           ),
           const SizedBox(width: 8),
         ],
@@ -70,7 +63,7 @@ class SearchRecipientScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // 1. ช่องค้นหา
+            // 1. ช่องค้นหา (เหมือนเดิม)
             TextField(
               controller: TextEditingController(text: "0967490007"),
               keyboardType: TextInputType.phone,
@@ -79,7 +72,6 @@ class SearchRecipientScreen extends StatelessWidget {
                 filled: true,
                 fillColor: Colors.white,
                 hintText: "กรอกเบอร์โทรหรือชื่อ",
-                // ตั้งค่าเส้นขอบ
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.0),
                   borderSide: BorderSide(color: Colors.grey[400]!),
@@ -99,14 +91,12 @@ class SearchRecipientScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16.0),
 
-            // 2. ปุ่มค้นหา
+            // 2. ปุ่มค้นหา (เหมือนเดิม)
             Center(
-              // <-- vvv 1. ใช้ Center ครอบเพื่อจัดกลาง
               child: ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryYellow,
-                  // vvv 2. เพิ่ม padding แนวนอน (horizontal) ให้ปุ่มกว้างขึ้นตามแบบ
                   padding: const EdgeInsets.symmetric(
                     vertical: 12,
                     horizontal: 80,
@@ -125,29 +115,33 @@ class SearchRecipientScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24.0), // เว้นวรรคก่อนเริ่มลิสต์
+            const SizedBox(height: 24.0),
+
             // 3. รายการผลลัพธ์
             Expanded(
               child: ListView(
                 children: [
-                  // ใช้ฟังก์ชัน helper เพื่อสร้างแต่ละรายการ
+                  // vvvv 2. ส่ง context เข้าไป vvvv
                   _buildContactTile(
-                    imageUrl:
-                        "https://i.imgur.com/v8SjA9H.png", // รูป placeholder
+                    context, // <--- ส่ง context
+                    imageUrl: "https://i.imgur.com/v8SjA9H.png",
                     name: "ฟิวพี",
                     phone: "0967490007",
                   ),
                   _buildContactTile(
+                    context, // <--- ส่ง context
                     imageUrl: "https://i.imgur.com/v8SjA9H.png",
                     name: "Soduku kiki",
                     phone: "096*******",
                   ),
                   _buildContactTile(
+                    context, // <--- ส่ง context
                     imageUrl: "https://i.imgur.com/v8SjA9H.png",
                     name: "Soduku kiki",
                     phone: "09674****7",
                   ),
                   _buildContactTile(
+                    context, // <--- ส่ง context
                     imageUrl: "https://i.imgur.com/v8SjA9H.png",
                     name: "Soduku kiki",
                     phone: "*****90007",
@@ -162,7 +156,8 @@ class SearchRecipientScreen extends StatelessWidget {
   }
 
   /// Helper Widget สำหรับสร้างแต่ละรายการในลิสต์
-  Widget _buildContactTile({
+  Widget _buildContactTile(
+    BuildContext context, { // <--- 1. รับ context เข้ามา
     required String imageUrl,
     required String name,
     required String phone,
@@ -172,7 +167,7 @@ class SearchRecipientScreen extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(
           radius: 25,
-          backgroundImage: NetworkImage(imageUrl), // โหลดรูปจาก URL
+          backgroundImage: NetworkImage(imageUrl),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
@@ -180,7 +175,16 @@ class SearchRecipientScreen extends StatelessWidget {
           style: TextStyle(color: Colors.grey[600], fontSize: 13),
         ),
         trailing: ElevatedButton(
-          onPressed: () {},
+          // vvvv 3. เพิ่ม Navigator.push ที่นี่ vvvv
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SendItemPage()),
+            );
+
+            print('เลือก: $name'); // (เอาไว้ทดสอบ)
+          },
+          // ^^^^ ^^^^
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryYellow,
             shape: RoundedRectangleBorder(

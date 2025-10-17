@@ -1,41 +1,24 @@
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
-import 'package:delivery/user/more.dart' hide CustomAppBarClipper;
-import 'package:delivery/user/tracking.dart' hide CustomAppBarClipper;
+import 'package:delivery/user/more.dart'
+    hide CustomAppBarClipper; // Hide if clipper is defined elsewhere
+import 'package:delivery/user/tracking.dart'
+    hide CustomAppBarClipper; // Hide if clipper is defined elsewhere
 import 'package:flutter/material.dart';
+
+// (อาจจะต้อง import หน้าอื่นๆ ที่ BottomNav เรียกใช้)
 
 class DetailPage extends StatelessWidget {
   const DetailPage({super.key});
+
+  // สีเหลืองหลัก (เผื่อใช้)
+  static const Color primaryYellow = Color(0xFFFDE428);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5), // สีพื้นหลังเทาอ่อน
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(100.0),
-        child: ClipPath(
-          clipper: CustomAppBarClipper(borderRadius: 20.0),
-          child: AppBar(
-            backgroundColor: const Color(0xFFFDE428),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-              onPressed: () {
-                // ใส่โค้ดสำหรับย้อนกลับที่นี่
-              },
-            ),
-            title: const Text(
-              'รายละเอียดสินค้า',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            centerTitle: true,
-          ),
-        ),
-      ),
+      appBar: _buildCustomAppBar(context), // <--- ใช้ AppBar ที่แก้ไขแล้ว
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -48,7 +31,7 @@ class DetailPage extends StatelessWidget {
               recipientAddress:
                   '999 หมู่ 10 อ.เมืองหนึ่ง ต.หนึ่งแห่ง จ.มหาสารคาม 525456',
               recipientPhone: '0899999999',
-              imagePlaceholderColor: Colors.grey.shade300, // สีของรูปสินค้า
+              imagePlaceholderColor: Colors.grey.shade300,
               driverName: 'thitima',
               shippingDate: '21/9/2567 เวลา 10:00',
               deliveryDate: '21/9/2567 เวลา 12:00',
@@ -62,7 +45,7 @@ class DetailPage extends StatelessWidget {
               recipientAddress:
                   '999 หมู่ 10 อ.เมืองหนึ่ง ต.หนึ่งแห่ง จ.มหาสารคาม 525456',
               recipientPhone: '0899999999',
-              imagePlaceholderColor: Colors.black26, // สีของรูปสินค้า
+              imagePlaceholderColor: Colors.black26,
               driverName: 'thitima',
               shippingDate: '21/9/2567 เวลา 10:00',
               deliveryDate: '21/9/2567 เวลา 12:00',
@@ -70,11 +53,63 @@ class DetailPage extends StatelessWidget {
           ],
         ),
       ),
+      // --- พิจารณาว่าจะใส่ BottomNav หรือไม่ ---
       bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
-  // --- ฟังก์ชันสำหรับสร้างการ์ดรายละเอียดสินค้า ---
+  // --- Widget สำหรับสร้าง AppBar แบบโค้ง (แก้ไขแล้ว) ---
+  PreferredSize _buildCustomAppBar(BuildContext context) {
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(100.0), // <-- ความสูง AppBar
+      child: ClipPath(
+        clipper: CustomAppBarClipper(borderRadius: 20.0),
+        child: Container(
+          // <-- ใช้ Container
+          color: primaryYellow, // <-- กำหนดสีที่นี่
+          padding: EdgeInsets.only(
+            top: statusBarHeight, // <-- กันพื้นที่ Status Bar
+          ),
+          child: Center(
+            // <-- ใช้ Center จัดกลางแนวตั้ง
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () {
+                    Navigator.pop(context); // <-- ใช้ pop()
+                  },
+                ),
+                Expanded(
+                  // <-- ใช้ Expanded
+                  child: Align(
+                    // <-- ใช้ Align
+                    alignment: Alignment.center, // <-- จัดกลาง Row
+                    child: const Text(
+                      'รายละเอียดสินค้า',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 20, // <-- ลดขนาดเล็กน้อย
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center, // <-- จัดกลางเผื่อข้อความยาว
+                    ),
+                  ),
+                ),
+                // SizedBox ทางขวาเพื่อให้ Title อยู่กลาง
+                const SizedBox(
+                  width: kToolbarHeight,
+                ), // kToolbarHeight คือความกว้างมาตรฐานของ IconButton
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- ฟังก์ชันสำหรับสร้างการ์ดรายละเอียดสินค้า --- (เหมือนเดิม)
   Widget _buildDetailCard({
     required String trackingId,
     required String sender,
@@ -166,32 +201,32 @@ class DetailPage extends StatelessWidget {
     );
   }
 
+  // --- ฟังก์ชัน BottomNav --- (เหมือนเดิม)
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
       selectedItemColor: const Color(0xFFFEE146),
       unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
+      // currentIndex: ??? // <-- หน้ารายละเอียดปกติไม่มี index ใน BottomNav
       onTap: (index) {
+        Widget page;
         switch (index) {
           case 0:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DeliveryPage()),
-            );
+            page = const DeliveryPage();
             break;
           case 1:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
-            );
+            page = const HistoryPage();
             break;
           case 2:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
-            );
+            page = const MoreOptionsPage();
             break;
+          default:
+            page = const DeliveryPage(); // หน้าเริ่มต้น
         }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => page),
+        );
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
@@ -203,4 +238,30 @@ class DetailPage extends StatelessWidget {
       ],
     );
   }
+} // <-- ปิดคลาส DetailPage
+
+/// Class for clipping the AppBar (ต้องมีในไฟล์นี้)
+class CustomAppBarClipper extends CustomClipper<Path> {
+  final double borderRadius;
+  CustomAppBarClipper({this.borderRadius = 20.0});
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - borderRadius);
+    path.quadraticBezierTo(0, size.height, borderRadius, size.height);
+    path.lineTo(size.width - borderRadius, size.height);
+    path.quadraticBezierTo(
+      size.width,
+      size.height,
+      size.width,
+      size.height - borderRadius,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => true;
 }

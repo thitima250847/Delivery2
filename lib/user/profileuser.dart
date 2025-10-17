@@ -1,50 +1,32 @@
 import 'package:flutter/material.dart';
 
-// (คุณสามารถลบ main() และ MyApp() ออกได้ หากนำไปรวมกับโปรเจกต์เดิม)
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'User Profile UI',
-      theme: ThemeData(fontFamily: 'Prompt'),
-      debugShowCheckedModeBanner: false,
-      home: const UserProfileScreen(),
-    );
-  }
-}
-// -----------------------------------------------------------------
+// (You can delete main() and MyApp() if integrating into an existing project)
 
 class UserProfileScreen extends StatelessWidget {
   const UserProfileScreen({super.key});
 
-  // สีเหลืองหลัก
+  // Main yellow color
   static const Color primaryYellow = Color(0xFFFDE428);
-  // สีพื้นหลังช่องกรอกข้อมูล
+  // Background color for input fields
   static const Color fieldBgColor = Color(0xFFF5F5F5);
-  // สีไอคอนบวกสีเขียว
+  // Green color for the plus icon
   static const Color plusGreen = Color(0xFF28C76F);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: _buildCustomAppBar(context), // ใช้ AppBar ที่สร้างเอง
+      appBar: _buildCustomAppBar(context), // Using the custom AppBar
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
           child: Column(
             children: [
-              // 1. รูปโปรไฟล์
+              // 1. Profile Picture
               _buildProfilePicture(),
               const SizedBox(height: 24.0),
 
-              // 2. ช่องข้อมูล
+              // 2. Info Fields
               _buildInfoField(icon: Icons.person_outline, text: "fiwfy"),
               const SizedBox(height: 12.0),
               _buildInfoField(
@@ -71,7 +53,7 @@ class UserProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24.0),
 
-              // 3. ไอคอนบวกด้านล่าง
+              // 3. Plus icon at the bottom
               const Icon(Icons.add, color: Colors.black, size: 30),
             ],
           ),
@@ -80,64 +62,68 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Widget สำหรับสร้าง AppBar แบบโค้ง
+  /// Widget for building the curved AppBar (Corrected)
   PreferredSize _buildCustomAppBar(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
+    const double appBarHeight = 100;
 
     return PreferredSize(
-      preferredSize: const Size.fromHeight(160), // ความสูงรวมของ AppBar
+      preferredSize: const Size.fromHeight(appBarHeight),
       child: ClipPath(
-        clipper: CustomAppBarClipper(borderRadius: 30.0), // ตัวตัดขอบโค้ง
+        clipper: CustomAppBarClipper(borderRadius: 30.0),
         child: Container(
           color: primaryYellow,
-          padding: EdgeInsets.only(
-            top: statusBarHeight, // จัดชิดขอบบน
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.black,
-                  size: 28,
+          padding: EdgeInsets.only(top: statusBarHeight),
+          child: Center(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.black,
+                    size: 28,
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
                 ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'ข้อมูลส่วนตัว',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                // vvvv This was the error location vvvv
+                // The extra closing parenthesis was here
+                const SizedBox(width: 10),
+                const Text(
+                  'ข้อมูลส่วนตัว',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
-              ),
-            ],
+                // ^^^^ Corrected structure ^^^^
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// Widget สำหรับสร้างรูปโปรไฟล์
+  /// Widget for building the profile picture
   Widget _buildProfilePicture() {
     return Center(
       child: SizedBox(
         width: 120,
         height: 120,
         child: Stack(
-          clipBehavior: Clip.none, // อนุญาตให้ไอคอน + ล้นออกมา
+          clipBehavior: Clip.none, // Allow icon to overflow
           children: [
-            // รูปโปรไฟล์
+            // Profile image
             const CircleAvatar(
               radius: 60,
               backgroundImage: NetworkImage(
                 "https://i.imgur.com/v8SjA9H.png",
-              ), // (ใช้รูป Shiba แทน)
+              ), // (Using Shiba as placeholder)
             ),
-            // ไอคอนบวกสีเขียว
+            // Green plus icon
             Positioned(
               bottom: 0,
               right: 0,
@@ -157,7 +143,7 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Widget สำหรับสร้างช่องกรอกข้อมูล
+  /// Widget for building an info field row
   Widget _buildInfoField({
     required IconData icon,
     required String text,
@@ -180,7 +166,7 @@ class UserProfileScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 15,
                 color: Colors.grey[800],
-                // (ถ้าเป็นรหัสผ่าน ให้ใช้ฟอนต์ที่แสดงจุดหนาๆ)
+                // (Use a font that shows thick dots for passwords)
                 fontFamily: (text == "********") ? 'Roboto' : null,
               ),
             ),
@@ -192,7 +178,7 @@ class UserProfileScreen extends StatelessWidget {
   }
 }
 
-/// Class สำหรับตัดขอบ AppBar (เหมือนกับ MorePage)
+/// Class for clipping the AppBar (must be in this file)
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});

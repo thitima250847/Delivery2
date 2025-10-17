@@ -2,19 +2,8 @@ import 'package:delivery/user/chagepassword.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/login.dart';
+import 'package:delivery/user/profileuser.dart';
 import 'package:flutter/material.dart';
-
-// vvvv 1. Import หน้าที่คุณต้องการไป vvvv
-// (ใส่ชื่อไฟล์ .dart ของคุณ)
-// import 'package:delivery/user/edit_profile_page.dart';
-// import 'package:delivery/user/change_password_screen.dart';
-// import 'package:delivery/user/login_page.dart'; // (หน้าสำหรับ Logout)
-
-// (สมมติว่าคุณมีคลาสเหล่านี้)
-// class EditProfilePage extends StatelessWidget { const EditProfilePage({Key? key}) : super(key: key); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("หน้าแก้ไขข้อมูล"))); }
-// class ChangePasswordScreen extends StatelessWidget { const ChangePasswordScreen({Key? key}) : super(key: key); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("หน้าเปลี่ยนรหัสผ่าน"))); }
-// class LoginPage extends StatelessWidget { const LoginPage({Key? key}) : super(key: key); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("หน้า Login"))); }
-// ^^^^ (ลบส่วนสมมตินี้ออกเมื่อคุณมีหน้าจริง) ^^^^
 
 class MoreOptionsPage extends StatelessWidget {
   const MoreOptionsPage({super.key});
@@ -44,7 +33,7 @@ class MoreOptionsPage extends StatelessWidget {
   PreferredSize _buildCustomAppBar() {
     // ... (โค้ดส่วน AppBar เหมือนเดิม) ...
     return PreferredSize(
-      preferredSize: const Size.fromHeight(150),
+      preferredSize: const Size.fromHeight(170),
       child: ClipPath(
         clipper: CustomAppBarClipper(borderRadius: 30.0),
         child: Container(
@@ -124,11 +113,12 @@ class MoreOptionsPage extends StatelessWidget {
           onTap: () {
             // vvvv เพิ่ม Logic การนำทางที่นี่ vvvv
             if (label == 'แก้ไขข้อมูลส่วนตัว') {
-              // (ใส่ชื่อหน้าที่ถูกต้อง)
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(builder: (context) => const EditProfilePage()),
-              // );
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserProfileScreen(),
+                ),
+              );
               print('กดปุ่ม: $label');
             } else if (label == 'เปลี่ยนรหัสผ่าน') {
               Navigator.push(

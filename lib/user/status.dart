@@ -43,7 +43,10 @@ class StatusScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
-            Navigator.of(context).pop();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DeliveryPage()),
+            );
           },
         ),
         title: const Text(

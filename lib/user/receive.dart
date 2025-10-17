@@ -1,7 +1,14 @@
+import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
+import 'package:delivery/user/search.dart';
+import 'package:delivery/user/status.dart'; // <-- Make sure StatusScreen is imported
 import 'package:flutter/material.dart';
+
+// Import necessary pages for navigation
+// import 'package:delivery/user/search.dart'; // <-- Already imported above
+// import 'package:delivery/user/status.dart'; // <-- Already imported above
 
 class ReceivePage extends StatelessWidget {
   const ReceivePage({super.key});
@@ -14,63 +21,103 @@ class ReceivePage extends StatelessWidget {
         clipBehavior: Clip.none,
         alignment: Alignment.topCenter,
         children: [
-          _buildCustomAppBar(),
+          _buildCustomAppBar(), // AppBar at the back
+          // Scrollable content area, pushed down
           Padding(
-            padding: const EdgeInsets.only(top: 180.0),
+            padding: const EdgeInsets.only(
+              top: 180.0,
+            ), // Adjust top padding if AppBar height changes
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(top: 130.0),
-              // --- vvv แก้ไขตรงนี้ vvv ---
-              // ครอบ Column ด้วย Padding เพื่อเพิ่มระยะห่างซ้าย-ขวา
+              padding: const EdgeInsets.only(
+                top: 130.0,
+              ), // Space for the action buttons
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   children: [
-                    _buildContentTitle(),
+                    _buildContentTitle(), // "รายการสินค้าที่ต้องรับ" title
                     const SizedBox(height: 24),
+                    // Delivery card 1
                     _buildDeliveryCard(
+                      context,
                       senderLocation: 'หอพักอัครฉัตรแมนชั่น ตึกใหม่',
                       senderName: 'sathima kanlayasai',
                       recipientLocation: 'คณะวิทยาการสารสนเทศ',
                       recipientName: 'Soduku',
                     ),
                     const SizedBox(height: 16),
+                    // Delivery card 2
                     _buildDeliveryCard(
+                      context,
                       senderLocation: 'หอพักอัครฉัตรแมนชั่น ตึกใหม่',
                       senderName: 'sathima kanlayasai',
                       recipientLocation: 'คณะวิทยาการสารสนเทศ',
                       recipientName: 'Soduku',
                     ),
+                    const SizedBox(
+                      height: 24,
+                    ), // Add some bottom padding if needed
                   ],
                 ),
               ),
-              // --- ^^^ ^^^ ---
             ),
           ),
+          // Action buttons positioned over the AppBar and content
           Positioned(
-            top: 150,
+            top: 150, // Position buttons below the main AppBar content
+            // Ensure the buttons container doesn't overflow horizontally
+            left: 0,
+            right: 0,
             child: Column(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildActionButton(
+                      context: context,
                       label: 'ส่งสินค้า',
                       icon: Icons.send_rounded,
                       iconColor: Colors.blue.shade700,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const SearchRecipientScreen(), // Navigate to Search Screen
+                          ),
+                        );
+                        print('กดปุ่ม: ส่งสินค้า');
+                      },
                     ),
                     const SizedBox(width: 16),
                     _buildActionButton(
+                      context: context,
                       label: 'สินค้าที่กำลังส่ง',
                       icon: Icons.local_shipping,
                       iconColor: Colors.orange.shade700,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const StatusScreen(), // Navigate to Status Screen
+                          ),
+                        );
+                        print('กดปุ่ม: สินค้าที่กำลังส่ง');
+                      },
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 _buildActionButton(
+                  context: context,
                   label: 'สินค้าที่ต้องรับ',
                   icon: Icons.inventory_2,
                   iconColor: Colors.green.shade700,
+                  onTap: () {
+                    // Current page, do nothing or maybe refresh
+                    print('กดปุ่ม: สินค้าที่ต้องรับ');
+                  },
                 ),
               ],
             ),
@@ -81,20 +128,26 @@ class ReceivePage extends StatelessWidget {
     );
   }
 
+  // --- AppBar ---
   Widget _buildCustomAppBar() {
     return ClipPath(
+      clipper: CustomAppBarClipper(
+        borderRadius: 30.0,
+      ), // Apply clipping with border radius
       child: Container(
-        height: 280,
+        // Adjusted height to better fit content, can be tweaked
+        height: 290, // <--- Adjust height if needed
         width: double.infinity,
-        color: const Color(0xFFFEE146),
+        color: const Color(0xFFFEE146), // Yellow background
         child: SafeArea(
-          bottom: false,
+          bottom: false, // No padding at the bottom inside SafeArea
           child: Padding(
             padding: const EdgeInsets.only(top: 15, left: 20, right: 20),
             child: Column(
               children: [
+                // Top row: Greeting and Profile Icon
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
                       'สวัสดี Tester',
@@ -106,7 +159,9 @@ class ReceivePage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withOpacity(
+                          0.3,
+                        ), // Semi-transparent white
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -118,24 +173,37 @@ class ReceivePage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
+                // Address Bar
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFA9A9A9),
-                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFFA9A9A9), // Grey background
+                    borderRadius: BorderRadius.circular(10), // Rounded corners
                   ),
-                  child: const Row(
+                  child: Row(
+                    // vvvv Center the icon and text vvvv
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    // ^^^^ ^^^^
                     children: [
-                      Icon(Icons.location_on, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        'หอพักอัจฉราแมนชั่น ตึกใหม่',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                      const Icon(
+                        Icons.location_on,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      // Use Flexible to prevent long text overflow
+                      Flexible(
+                        child: const Text(
+                          'หอพักอัจฉราแมนชั่น ตึกใหม่',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow
+                              .ellipsis, // Add ellipsis (...) if text is too long
                         ),
                       ),
                     ],
@@ -149,44 +217,68 @@ class ReceivePage extends StatelessWidget {
     );
   }
 
+  // --- Action Button ---
   Widget _buildActionButton({
+    required BuildContext context,
     required String label,
     required IconData icon,
     required Color iconColor,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      width: 150,
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(width: 8),
-          Icon(icon, color: iconColor),
-        ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(
+        15,
+      ), // Match Container's border radius
+      child: Container(
+        width: 190, // Adjusted width
+        padding: const EdgeInsets.symmetric(
+          vertical: 16.0,
+        ), // Vertical padding for height
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(
+            10,
+          ), // Slightly less rounded corners
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 10,
+              offset: const Offset(0, 5), // Shadow position
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ), // Adjusted font size
+            ),
+            const SizedBox(width: 8),
+            Icon(icon, color: iconColor, size: 26), // Adjusted icon size
+          ],
+        ),
       ),
     );
   }
 
+  // --- Content Title ("รายการสินค้าที่ต้องรับ") ---
   Widget _buildContentTitle() {
     return Container(
+      width: double.infinity, // Make title container stretch full width
       padding: const EdgeInsets.symmetric(vertical: 12.0),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.yellow.shade700, width: 1.5),
+        border: Border.all(
+          color: Colors.yellow.shade700,
+          width: 1.5,
+        ), // Yellow border
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.15),
@@ -204,18 +296,19 @@ class ReceivePage extends StatelessWidget {
     );
   }
 
-  Widget _buildDeliveryCard({
+  // --- Delivery Card ---
+  Widget _buildDeliveryCard(
+    BuildContext context, {
     required String senderLocation,
     required String senderName,
     required String recipientLocation,
     required String recipientName,
   }) {
     return Container(
-      // margin: const EdgeInsets.symmetric(horizontal: 16), // ลบออก
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20), // More rounded corners
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -226,46 +319,59 @@ class ReceivePage extends StatelessWidget {
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment:
+            CrossAxisAlignment.center, // Align items vertically center
         children: [
+          // Delivery Icon Container
           Container(
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
+              color: Colors.grey.shade200, // Light grey background
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              Icons.delivery_dining,
+              Icons.delivery_dining, // Delivery icon
               size: 40,
-              color: Colors.green.shade700,
+              color: Colors.green.shade700, // Green icon color
             ),
           ),
           const SizedBox(width: 16),
+          // Location and Name Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildLocationRow(
                   icon: Icons.location_on,
-                  color: Colors.red,
+                  color: Colors.red, // Red for sender
                   location: senderLocation,
                   person: 'ชื่อผู้ส่ง : $senderName',
                 ),
                 const SizedBox(height: 12),
                 _buildLocationRow(
                   icon: Icons.location_on,
-                  color: Colors.green,
+                  color: Colors.green, // Green for recipient
                   location: recipientLocation,
                   person: 'ชื่อผู้รับ : $recipientName',
                 ),
                 const SizedBox(height: 12),
+                // Details Button aligned to the right
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const DetailPage(), // Navigate to Detail Page
+                        ),
+                      );
+                      print('กดปุ่ม รายละเอียด');
+                    },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFDE428),
+                      backgroundColor: const Color(0xFFFDE428), // Yellow button
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -273,10 +379,10 @@ class ReceivePage extends StatelessWidget {
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      elevation: 0,
+                      elevation: 0, // No shadow
                     ),
                     child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize: MainAxisSize.min, // Fit content size
                       children: [
                         Text(
                           'รายละเอียด',
@@ -287,7 +393,7 @@ class ReceivePage extends StatelessWidget {
                           ),
                         ),
                         Icon(
-                          Icons.chevron_right,
+                          Icons.chevron_right, // Right arrow icon
                           color: Colors.black,
                           size: 16,
                         ),
@@ -303,6 +409,7 @@ class ReceivePage extends StatelessWidget {
     );
   }
 
+  // --- Location Row Helper ---
   Widget _buildLocationRow({
     required IconData icon,
     required Color color,
@@ -310,14 +417,15 @@ class ReceivePage extends StatelessWidget {
     required String person,
   }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start, // Align icon and text top
       children: [
-        Icon(icon, color: color, size: 20),
+        Icon(icon, color: color, size: 20), // Location icon
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Location Text
               Text(
                 location,
                 style: const TextStyle(
@@ -325,9 +433,13 @@ class ReceivePage extends StatelessWidget {
                   fontSize: 14,
                 ),
               ),
+              // Person Name Text
               Text(
                 person,
-                style: const TextStyle(color: Colors.black54, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 12,
+                ), // Greyish text
               ),
             ],
           ),
@@ -335,67 +447,92 @@ class ReceivePage extends StatelessWidget {
       ],
     );
   }
-}
 
-Widget _buildBottomNavigationBar(BuildContext context) {
-  return BottomNavigationBar(
-    backgroundColor: Colors.white,
-    selectedItemColor: const Color(0xFFFEE146),
-    unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
-    currentIndex: 1, // หน้านี้คือ index 1 (ประวัติ)
-    onTap: (index) {
-      switch (index) {
-        case 0:
+  // --- Bottom Navigation Bar ---
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    return BottomNavigationBar(
+      backgroundColor: Colors.white,
+      selectedItemColor: const Color(0xFFFEE146), // Yellow for selected item
+      unselectedItemColor: const Color.fromARGB(
+        255,
+        20,
+        19,
+        19,
+      ), // Dark grey for unselected
+      currentIndex: 0, // Assuming this page is the first tab (index 0)
+      onTap: (index) {
+        // Handle navigation
+        Widget page;
+        bool shouldReplace = true; // Use pushReplacement by default
+
+        switch (index) {
+          case 0:
+            // Already on this page, do nothing or maybe refresh
+            return; // Exit if already on the current page
+          case 1:
+            page = const HistoryPage();
+            shouldReplace = false; // Use push for History so user can go back
+            break;
+          case 2:
+            page = const MoreOptionsPage();
+            shouldReplace =
+                false; // Use push for More Options so user can go back
+            break;
+          default:
+            return; // Should not happen
+        }
+
+        if (shouldReplace) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const DeliveryPage()),
+            MaterialPageRoute(builder: (context) => page),
           );
-          break;
-        case 1:
+        } else {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const HistoryPage()),
+            MaterialPageRoute(builder: (context) => page),
           );
-          break;
-        case 2:
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
-          );
-          break;
-      }
-    },
-    items: const [
-      BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
-      BottomNavigationBarItem(
-        icon: Icon(Icons.history),
-        label: 'ประวัติการส่งสินค้า',
-      ),
-      BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'อื่นๆ'),
-    ],
-  );
-}
+        }
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.history),
+          label: 'ประวัติการส่งสินค้า',
+        ),
+        BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'อื่นๆ'),
+      ],
+    );
+  }
+} // End of ReceivePage class
 
+// --- Custom Clipper for AppBar ---
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
-  CustomAppBarClipper({this.borderRadius = 20.0});
+  CustomAppBarClipper({this.borderRadius = 30.0}); // Default border radius
+
   @override
   Path getClip(Size size) {
+    // Path creation logic for curved bottom AppBar
     final path = Path();
-    path.lineTo(0, size.height - borderRadius);
+    path.lineTo(0, size.height - borderRadius); // Start line
+    // Quadratic Bezier curve for left corner
     path.quadraticBezierTo(0, size.height, borderRadius, size.height);
+    // Line across bottom
     path.lineTo(size.width - borderRadius, size.height);
+    // Quadratic Bezier curve for right corner
     path.quadraticBezierTo(
       size.width,
       size.height,
       size.width,
       size.height - borderRadius,
     );
+    // Line up right side
     path.lineTo(size.width, 0);
-    path.close();
+    path.close(); // Close path
     return path;
   }
 
   @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => true;
+  bool shouldReclip(CustomClipper<Path> oldClipper) => true; // Always reclip (can be optimized if needed)
 }

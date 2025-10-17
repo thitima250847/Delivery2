@@ -1,7 +1,9 @@
-import 'package:delivery/rider/trackingscreen.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
+import 'package:delivery/user/search.dart';
 import 'package:delivery/user/senditem.dart';
+import 'package:delivery/user/status.dart';
+import 'package:delivery/user/tracking.dart';
 import 'package:flutter/material.dart';
 import 'package:delivery/user/receive.dart';
 
@@ -153,7 +155,7 @@ class DeliveryPage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const SendItemPage(),
+              builder: (context) => const SearchRecipientScreen(),
             ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
           );
           print('กดปุ่ม ส่งสินค้า'); // ตัวอย่างการแสดงข้อความใน Console
@@ -161,7 +163,7 @@ class DeliveryPage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const TrackingScreen(),
+              builder: (context) => const StatusScreen(),
             ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
           );
           print('กดปุ่ม สินค้าที่กำลังส่ง'); // ตัวอย่างการแสดงข้อความใน Console
@@ -205,7 +207,7 @@ class DeliveryPage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const ReceivePage(),
+              builder: (context) => const TrackingScreen(),
             ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
           );
           print('กดปุ่ม สินค้าที่ต้องรับ'); // ตัวอย่างการแสดงข้อความใน Console

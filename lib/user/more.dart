@@ -1,6 +1,20 @@
+import 'package:delivery/user/chagepassword.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
+import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
+
+// vvvv 1. Import หน้าที่คุณต้องการไป vvvv
+// (ใส่ชื่อไฟล์ .dart ของคุณ)
+// import 'package:delivery/user/edit_profile_page.dart';
+// import 'package:delivery/user/change_password_screen.dart';
+// import 'package:delivery/user/login_page.dart'; // (หน้าสำหรับ Logout)
+
+// (สมมติว่าคุณมีคลาสเหล่านี้)
+// class EditProfilePage extends StatelessWidget { const EditProfilePage({Key? key}) : super(key: key); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("หน้าแก้ไขข้อมูล"))); }
+// class ChangePasswordScreen extends StatelessWidget { const ChangePasswordScreen({Key? key}) : super(key: key); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("หน้าเปลี่ยนรหัสผ่าน"))); }
+// class LoginPage extends StatelessWidget { const LoginPage({Key? key}) : super(key: key); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("หน้า Login"))); }
+// ^^^^ (ลบส่วนสมมตินี้ออกเมื่อคุณมีหน้าจริง) ^^^^
 
 class MoreOptionsPage extends StatelessWidget {
   const MoreOptionsPage({super.key});
@@ -14,11 +28,12 @@ class MoreOptionsPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
         child: Column(
           children: [
-            _buildOptionButton(label: 'แก้ไขข้อมูลส่วนตัว'),
+            // vvvv 2. ส่ง context เข้าไป vvvv
+            _buildOptionButton(context, label: 'แก้ไขข้อมูลส่วนตัว'),
             const SizedBox(height: 16),
-            _buildOptionButton(label: 'เปลี่ยนรหัสผ่าน'),
+            _buildOptionButton(context, label: 'เปลี่ยนรหัสผ่าน'),
             const SizedBox(height: 16),
-            _buildOptionButton(label: 'ออกจากระบบ'),
+            _buildOptionButton(context, label: 'ออกจากระบบ'),
           ],
         ),
       ),
@@ -27,6 +42,7 @@ class MoreOptionsPage extends StatelessWidget {
   }
 
   PreferredSize _buildCustomAppBar() {
+    // ... (โค้ดส่วน AppBar เหมือนเดิม) ...
     return PreferredSize(
       preferredSize: const Size.fromHeight(150),
       child: ClipPath(
@@ -85,7 +101,8 @@ class MoreOptionsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildOptionButton({required String label}) {
+  // vvvv 3. แก้ไขฟังก์ชันนี้ (เพิ่ม context และ onTap logic) vvvv
+  Widget _buildOptionButton(BuildContext context, {required String label}) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -105,7 +122,32 @@ class MoreOptionsPage extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(15),
           onTap: () {
-            print('กดปุ่ม: $label');
+            // vvvv เพิ่ม Logic การนำทางที่นี่ vvvv
+            if (label == 'แก้ไขข้อมูลส่วนตัว') {
+              // (ใส่ชื่อหน้าที่ถูกต้อง)
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => const EditProfilePage()),
+              // );
+              print('กดปุ่ม: $label');
+            } else if (label == 'เปลี่ยนรหัสผ่าน') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ChangePasswordScreen(),
+                ),
+              );
+              print('กดปุ่ม: $label');
+            } else if (label == 'ออกจากระบบ') {
+              // (ตัวอย่างการ Logout กลับไปหน้า Login)
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+                (Route<dynamic> route) => false, // ลบทุกหน้าก่อนหน้า
+              );
+              print('กดปุ่ม: $label');
+            }
+            // ^^^^ ^^^^
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -124,7 +166,7 @@ class MoreOptionsPage extends StatelessWidget {
     );
   }
 
-  // ✅ ย้ายฟังก์ชันนี้มาไว้ใน class นี้ (MoreOptionsPage)
+  // (ฟังก์ชัน _buildBottomNavigationBar เหมือนเดิม)
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -134,22 +176,24 @@ class MoreOptionsPage extends StatelessWidget {
       onTap: (index) {
         switch (index) {
           case 0:
-            Navigator.push(
+            // (ใช้ pushReplacement เพื่อไม่ให้หน้าซ้อนกัน)
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const DeliveryPage()),
             );
             break;
           case 1:
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HistoryPage()),
             );
             break;
           case 2:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
-            );
+            // (ถ้าอยู่ที่หน้า "อื่นๆ" อยู่แล้ว ไม่ต้องทำอะไร)
+            // Navigator.pushReplacement(
+            //   context,
+            //   MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
+            // );
             break;
         }
       },
@@ -165,6 +209,7 @@ class MoreOptionsPage extends StatelessWidget {
   }
 }
 
+// (คลาส CustomAppBarClipper เหมือนเดิม)
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});

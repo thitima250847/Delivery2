@@ -1,6 +1,9 @@
+import 'package:delivery/rider/trackingscreen.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
+import 'package:delivery/user/senditem.dart';
 import 'package:flutter/material.dart';
+import 'package:delivery/user/receive.dart';
 
 class DeliveryPage extends StatelessWidget {
   const DeliveryPage({super.key});
@@ -147,16 +150,20 @@ class DeliveryPage extends StatelessWidget {
       onTap: () {
         // เพิ่มโค้ดสำหรับนำทางไปยังหน้าอื่นที่นี่
         if (text == 'ส่งสินค้า') {
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (context) => const DeliveryPage()), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
-          // );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SendItemPage(),
+            ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
+          );
           print('กดปุ่ม ส่งสินค้า'); // ตัวอย่างการแสดงข้อความใน Console
         } else if (text == 'สินค้าที่กำลังส่ง') {
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (context) => const InTransitPage()), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
-          // );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const TrackingScreen(),
+            ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
+          );
           print('กดปุ่ม สินค้าที่กำลังส่ง'); // ตัวอย่างการแสดงข้อความใน Console
         }
       },
@@ -195,11 +202,12 @@ class DeliveryPage extends StatelessWidget {
       width: 200,
       child: InkWell(
         onTap: () {
-          // เพิ่มโค้ดสำหรับนำทางไปยังหน้าอื่นที่นี่
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (context) => const ReceivedPage()), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
-          // );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReceivePage(),
+            ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
+          );
           print('กดปุ่ม สินค้าที่ต้องรับ'); // ตัวอย่างการแสดงข้อความใน Console
         },
         child: Container(

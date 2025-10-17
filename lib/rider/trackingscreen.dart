@@ -1,25 +1,5 @@
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tracking Screen UI',
-      theme: ThemeData(fontFamily: 'Prompt'),
-      debugShowCheckedModeBanner: false,
-      home: const TrackingScreen(),
-    );
-  }
-}
-// -----------------------------------------------------------------
-
-// 1. นี่คือคลาส Widget หลัก (ห้ามใส่เมธอด helper ไว้ที่นี่)
 class TrackingScreen extends StatefulWidget {
   const TrackingScreen({Key? key}) : super(key: key);
 

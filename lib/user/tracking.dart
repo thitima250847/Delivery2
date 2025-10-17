@@ -1,3 +1,4 @@
+import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
@@ -153,7 +154,20 @@ class TrackingScreen extends StatelessWidget {
                 ),
               ),
               ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  // (ลบ onPressed ที่ซ้อนกันออก)
+
+                  Navigator.push(
+                    context,
+                    // (เพิ่ม ')' หลัง DetailPage() และย้าย ';' มาไว้ท้ายสุด)
+                    MaterialPageRoute(builder: (context) => const DetailPage()),
+                  );
+
+                  print(
+                    'กดปุ่ม รายละเอียด',
+                  ); // (เอาบรรทัดนี้ออกเมื่อใช้ Navigator)
+                },
+
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   shape: RoundedRectangleBorder(

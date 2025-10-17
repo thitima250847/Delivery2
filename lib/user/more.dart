@@ -130,6 +130,7 @@ class MoreOptionsPage extends StatelessWidget {
       backgroundColor: Colors.white,
       selectedItemColor: const Color(0xFFFEE146),
       unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
+      currentIndex: 2,
       onTap: (index) {
         switch (index) {
           case 0:

@@ -78,8 +78,8 @@ class _LoginPage extends State<LoginPage> {
         fs.collection('users').doc(uid).get(),
       ]);
 
-      final riderDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
-      final userDoc  = results[1] as DocumentSnapshot<Map<String, dynamic>>;
+      final riderDoc = results[0];
+      final userDoc  = results[1];
 
       if (riderDoc.exists) {
         final name = (riderDoc.data()?['name'] as String?)?.trim();

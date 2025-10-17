@@ -1,7 +1,5 @@
-// registerRider.dart
-
 import 'dart:convert';
-import 'dart:math';                         // ⭐ เพิ่ม
+import 'dart:math';                        
 import 'dart:typed_data';
 import 'package:delivery/config/config_Img.dart';
 import 'package:delivery/user/login.dart';
@@ -12,7 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:crypto/crypto.dart';        // ⭐ เพิ่ม
+import 'package:crypto/crypto.dart';
 
 class RegisterRider extends StatefulWidget {
   const RegisterRider({super.key});

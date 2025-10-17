@@ -6,10 +6,6 @@ import 'package:delivery/user/search.dart';
 import 'package:delivery/user/status.dart'; // <-- Make sure StatusScreen is imported
 import 'package:flutter/material.dart';
 
-// Import necessary pages for navigation
-// import 'package:delivery/user/search.dart'; // <-- Already imported above
-// import 'package:delivery/user/status.dart'; // <-- Already imported above
-
 class ReceivePage extends StatelessWidget {
   const ReceivePage({super.key});
 

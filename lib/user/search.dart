@@ -2,24 +2,6 @@ import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/senditem.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Rider Home UI',
-      theme: ThemeData(fontFamily: 'Prompt'),
-      debugShowCheckedModeBanner: false,
-      home: const SearchRecipientScreen(),
-    );
-  }
-}
-
 class SearchRecipientScreen extends StatelessWidget {
   const SearchRecipientScreen({Key? key}) : super(key: key);
 

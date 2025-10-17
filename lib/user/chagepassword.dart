@@ -1,25 +1,6 @@
 import 'package:flutter/material.dart';
 
 // (คุณสามารถลบ main() และ MyApp() ออกได้ หากนำไปรวมกับโปรเจกต์เดิม)
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Change Password UI',
-      theme: ThemeData(fontFamily: 'Prompt'),
-      debugShowCheckedModeBanner: false,
-      home: const ChangePasswordScreen(),
-    );
-  }
-}
-// -----------------------------------------------------------------
-
 
 class ChangePasswordScreen extends StatelessWidget {
   const ChangePasswordScreen({Key? key}) : super(key: key);
@@ -55,9 +36,9 @@ class ChangePasswordScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch, // ทำให้ Widget เต็มความกว้าง
+            crossAxisAlignment:
+                CrossAxisAlignment.stretch, // ทำให้ Widget เต็มความกว้าง
             children: [
-              
               // 1. ไอคอนโปรไฟล์
               _buildProfileIcon(),
               const SizedBox(height: 32.0),
@@ -94,11 +75,7 @@ class ChangePasswordScreen extends StatelessWidget {
           clipBehavior: Clip.none, // อนุญาตให้ไอคอน + ล้นออกมา
           children: [
             Center(
-              child: Icon(
-                Icons.person,
-                color: Colors.grey[700],
-                size: 80,
-              ),
+              child: Icon(Icons.person, color: Colors.grey[700], size: 80),
             ),
             Positioned(
               bottom: 5,
@@ -108,11 +85,7 @@ class ChangePasswordScreen extends StatelessWidget {
                   color: Colors.black,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.add,
-                  color: Colors.white,
-                  size: 28,
-                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 28),
               ),
             ),
           ],
@@ -140,7 +113,10 @@ class ChangePasswordScreen extends StatelessWidget {
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10.0),
               borderSide: BorderSide(color: Colors.grey[400]!),

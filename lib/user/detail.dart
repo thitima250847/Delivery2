@@ -1,12 +1,8 @@
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
-import 'package:delivery/user/more.dart'
-    hide CustomAppBarClipper; // Hide if clipper is defined elsewhere
-import 'package:delivery/user/tracking.dart'
-    hide CustomAppBarClipper; // Hide if clipper is defined elsewhere
+import 'package:delivery/user/more.dart' hide CustomAppBarClipper;
+import 'package:delivery/user/tracking.dart' hide CustomAppBarClipper;
 import 'package:flutter/material.dart';
-
-// (อาจจะต้อง import หน้าอื่นๆ ที่ BottomNav เรียกใช้)
 
 class DetailPage extends StatelessWidget {
   const DetailPage({super.key});

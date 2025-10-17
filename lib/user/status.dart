@@ -3,24 +3,6 @@ import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Status Screen UI', // อัปเดต title
-      theme: ThemeData(fontFamily: 'Prompt'),
-      debugShowCheckedModeBanner: false,
-      home: const StatusScreen(), // <<< เปลี่ยนชื่อคลาสที่เรียกใช้
-    );
-  }
-}
-
 // vvv เปลี่ยนชื่อคลาสเป็น StatusScreen
 class StatusScreen extends StatelessWidget {
   // vvv อัปเดต Constructor

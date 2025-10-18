@@ -1,43 +1,111 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+// หน้านำทาง (ที่ไม่เปลี่ยน)
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/search.dart';
-import 'package:delivery/user/senditem.dart';
 import 'package:delivery/user/status.dart';
 import 'package:delivery/user/tracking.dart';
-import 'package:flutter/material.dart';
-import 'package:delivery/user/receive.dart';
 
-class DeliveryPage extends StatelessWidget {
+// ***** 1. แปลงเป็น StatefulWidget *****
+class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
+
+  @override
+  State<DeliveryPage> createState() => _DeliveryPageState();
+}
+
+class _DeliveryPageState extends State<DeliveryPage> {
+  // ***** 2. สร้างตัวแปรเพื่อเก็บข้อมูลผู้ใช้และสถานะการโหลด *****
+  String? _userName;
+  String? _userAddress;
+  bool _isLoading = true;
+
+  // ***** 3. สร้างฟังก์ชันดึงข้อมูลเมื่อหน้าจอถูกสร้าง *****
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    try {
+      // ดึงข้อมูลผู้ใช้ที่ล็อกอินปัจจุบัน
+      User? currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser != null) {
+        String uid = currentUser.uid;
+
+        // ดึงเอกสารของผู้ใช้จาก Firestore
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+
+        if (userDoc.exists) {
+          // แปลงข้อมูลเป็น Map
+          Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+
+          // ดึงชื่อ
+          final name = data['name'] as String?;
+
+          // ดึงที่อยู่ (จากใน array 'addresses')
+          final addresses = data['addresses'] as List<dynamic>?;
+          String? addressText;
+          if (addresses != null && addresses.isNotEmpty) {
+            final firstAddress = addresses[0] as Map<String, dynamic>;
+            addressText = firstAddress['address_text'] as String?;
+          }
+
+          // อัปเดต State เพื่อให้ UI แสดงผลใหม่
+          setState(() {
+            _userName = name;
+            _userAddress = addressText;
+            _isLoading = false; // โหลดเสร็จแล้ว
+          });
+        }
+      } else {
+         setState(() {
+            _isLoading = false;
+         });
+      }
+    } catch (e) {
+      print("Error fetching user data: $e");
+      setState(() {
+        _isLoading = false; // หากเกิดข้อผิดพลาดให้หยุดโหลด
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopSection(),
-            _buildButtonSection(context), // ส่ง context ไปที่ฟังก์ชันสร้างปุ่ม
-            const SizedBox(height: 20),
-            _buildAdCard(
-              imageUrl:
-                  'https://moviedelic.com/wp-content/uploads/2025/05/Mad-Unicornuniversal-base_na_01_zxx-1-e1748597704822.jpg', // Replace with your image URL
-
-              title: 'TUNDER EXPRESS',
+      // ***** 4. แสดงผลตามสถานะการโหลด *****
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator()) // ขณะโหลด
+          : SingleChildScrollView( // เมื่อโหลดเสร็จแล้ว
+              child: Column(
+                children: [
+                  _buildTopSection(),
+                  _buildButtonSection(context),
+                  const SizedBox(height: 20),
+                  _buildAdCard(
+                    imageUrl:
+                        'https://moviedelic.com/wp-content/uploads/2025/05/Mad-Unicornuniversal-base_na_01_zxx-1-e1748597704822.jpg',
+                    title: 'TUNDER EXPRESS',
+                  ),
+                  const SizedBox(height: 20),
+                  _buildAdCard(
+                    imageUrl:
+                        'https://img.youtube.com/vi/Tb_H0-BavZY/sddefault.jpg',
+                    title: 'กว่าจะเป็น ‘สันติ’',
+                  ),
+                ],
+              ),
             ),
-
-            const SizedBox(height: 20),
-
-            _buildAdCard(
-              imageUrl:
-                  'https://img.youtube.com/vi/Tb_H0-BavZY/sddefault.jpg', // Replace with your image URL
-
-              title: 'กว่าจะเป็น ‘สันติ’',
-            ),
-          ],
-        ),
-      ),
       bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
@@ -61,9 +129,10 @@ class DeliveryPage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'สวัสดี Tester',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                // ***** 5. เปลี่ยนมาใช้ข้อมูลจาก State *****
+                Text(
+                  'สวัสดี ${_userName ?? 'ผู้ใช้งาน'}', // ใช้ชื่อที่ดึงมา
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -83,18 +152,22 @@ class DeliveryPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
               decoration: BoxDecoration(
-                color: Color(0xFFA9A9A9),
+                color: const Color(0xFFA9A9A9),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.location_on, color: Colors.white, size: 20),
-                  SizedBox(width: 10),
-                  Text(
-                    'หอพักอัจฉราแมนชั่น ตึกใหม่',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                  const Icon(Icons.location_on, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  // ***** 6. เปลี่ยนมาใช้ข้อมูลที่อยู่จาก State *****
+                  Expanded(
+                    child: Text(
+                      _userAddress ?? 'ไม่พบที่อยู่', // ใช้ที่อยู่ที่ดึงมา
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -106,7 +179,7 @@ class DeliveryPage extends StatelessWidget {
     );
   }
 
-  // ส่วนของปุ่ม 3 ปุ่ม
+  // ส่วนของปุ่ม 3 ปุ่ม (โค้ดเดิม)
   Widget _buildButtonSection(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -118,7 +191,7 @@ class DeliveryPage extends StatelessWidget {
             children: [
               Expanded(
                 child: _buildActionButton(
-                  context, // ส่ง context ไปที่ฟังก์ชันสร้างปุ่ม
+                  context,
                   text: 'ส่งสินค้า',
                   icon: Icons.delivery_dining,
                 ),
@@ -126,7 +199,7 @@ class DeliveryPage extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildActionButton(
-                  context, // ส่ง context ไปที่ฟังก์ชันสร้างปุ่ม
+                  context,
                   text: 'สินค้าที่กำลังส่ง',
                   icon: Icons.local_shipping,
                 ),
@@ -136,13 +209,13 @@ class DeliveryPage extends StatelessWidget {
           const SizedBox(height: 15),
           Center(
             child: _buildReceivedButton(context),
-          ), // ส่ง context ไปที่ฟังก์ชันสร้างปุ่ม
+          ),
         ],
       ),
     );
   }
 
-  // ฟังก์ชันสร้างปุ่มสำหรับ 'ส่งสินค้า' และ 'สินค้าที่กำลังส่ง'
+  // ฟังก์ชันสร้างปุ่มสำหรับ 'ส่งสินค้า' และ 'สินค้าที่กำลังส่ง' (โค้ดเดิม)
   Widget _buildActionButton(
     BuildContext context, {
     required String text,
@@ -150,23 +223,20 @@ class DeliveryPage extends StatelessWidget {
   }) {
     return InkWell(
       onTap: () {
-        // เพิ่มโค้ดสำหรับนำทางไปยังหน้าอื่นที่นี่
         if (text == 'ส่งสินค้า') {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const SearchRecipientScreen(),
-            ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
+            ),
           );
-          print('กดปุ่ม ส่งสินค้า'); // ตัวอย่างการแสดงข้อความใน Console
         } else if (text == 'สินค้าที่กำลังส่ง') {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const StatusScreen(),
-            ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
+            ),
           );
-          print('กดปุ่ม สินค้าที่กำลังส่ง'); // ตัวอย่างการแสดงข้อความใน Console
         }
       },
       child: Container(
@@ -188,9 +258,13 @@ class DeliveryPage extends StatelessWidget {
           children: [
             Icon(icon, color: Colors.green, size: 40),
             const SizedBox(width: 10),
-            Text(
-              text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Flexible(
+              child: Text(
+                text,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -198,7 +272,7 @@ class DeliveryPage extends StatelessWidget {
     );
   }
 
-  // ฟังก์ชันสร้างปุ่มสำหรับ 'สินค้าที่ต้องรับ'
+  // ฟังก์ชันสร้างปุ่มสำหรับ 'สินค้าที่ต้องรับ' (โค้ดเดิม)
   Widget _buildReceivedButton(BuildContext context) {
     return SizedBox(
       width: 200,
@@ -208,9 +282,8 @@ class DeliveryPage extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) => const TrackingScreen(),
-            ), // ใส่ชื่อหน้าปลายทางของคุณที่นี่
+            ),
           );
-          print('กดปุ่ม สินค้าที่ต้องรับ'); // ตัวอย่างการแสดงข้อความใน Console
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
@@ -242,7 +315,7 @@ class DeliveryPage extends StatelessWidget {
     );
   }
 
-  // ส่วนของการ์ดรูปภาพ
+  // ส่วนของการ์ดรูปภาพ (โค้ดเดิม)
   Widget _buildAdCard({
     required String imageUrl,
     required String title,
@@ -295,7 +368,7 @@ class DeliveryPage extends StatelessWidget {
     );
   }
 
-  // ส่วนเมนูด้านล่าง
+  // ส่วนเมนูด้านล่าง (โค้ดเดิม)
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -304,10 +377,7 @@ class DeliveryPage extends StatelessWidget {
       onTap: (index) {
         switch (index) {
           case 0:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DeliveryPage()),
-            );
+            // ไม่ต้องทำอะไรเพราะอยู่หน้าแรกแล้ว
             break;
           case 1:
             Navigator.push(

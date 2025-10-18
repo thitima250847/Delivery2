@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const LoginPage(), // กำหนด RegisterUser เป็นหน้าแรก
+      home: const LoginPage(), // กำหนด RegisterUser เป็นหน้าแรกนย
       debugShowCheckedModeBanner: false, // สามารถลบแบนเนอร์ debug ได้
     );
   }

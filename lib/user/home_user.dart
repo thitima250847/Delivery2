@@ -1,3 +1,4 @@
+import 'package:delivery/user/receive.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -67,9 +68,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
           });
         }
       } else {
-         setState(() {
-            _isLoading = false;
-         });
+        setState(() {
+          _isLoading = false;
+        });
       }
     } catch (e) {
       print("Error fetching user data: $e");
@@ -86,7 +87,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
       // ***** 4. แสดงผลตามสถานะการโหลด *****
       body: _isLoading
           ? const Center(child: CircularProgressIndicator()) // ขณะโหลด
-          : SingleChildScrollView( // เมื่อโหลดเสร็จแล้ว
+          : SingleChildScrollView(
+              // เมื่อโหลดเสร็จแล้ว
               child: Column(
                 children: [
                   _buildTopSection(),
@@ -132,7 +134,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 // ***** 5. เปลี่ยนมาใช้ข้อมูลจาก State *****
                 Text(
                   'สวัสดี ${_userName ?? 'ผู้ใช้งาน'}', // ใช้ชื่อที่ดึงมา
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -207,9 +212,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
             ],
           ),
           const SizedBox(height: 15),
-          Center(
-            child: _buildReceivedButton(context),
-          ),
+          Center(child: _buildReceivedButton(context)),
         ],
       ),
     );
@@ -226,16 +229,12 @@ class _DeliveryPageState extends State<DeliveryPage> {
         if (text == 'ส่งสินค้า') {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const SearchRecipientScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const ReceivePage()),
           );
         } else if (text == 'สินค้าที่กำลังส่ง') {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const StatusScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const StatusScreen()),
           );
         }
       },
@@ -261,8 +260,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
             Flexible(
               child: Text(
                 text,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -280,9 +281,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const TrackingScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const TrackingScreen()),
           );
         },
         child: Container(

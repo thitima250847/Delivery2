@@ -6,6 +6,28 @@ import 'package:delivery/user/search.dart';
 import 'package:delivery/user/status.dart'; // <-- Make sure StatusScreen is imported
 import 'package:flutter/material.dart';
 
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  // This widget is the root of your application.
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Delivery App',
+      theme: ThemeData(
+        primarySwatch: Colors.yellow,
+        fontFamily: 'Kanit', // ตัวอย่างการใช้ฟอนต์ภาษาไทย (ถ้ามี)
+      ),
+      home: const ReceivePage(), // ตั้งค่าให้ ReceivePage เป็นหน้าแรก
+      debugShowCheckedModeBanner: false, // ปิดแถบ Debug Banner
+    );
+  }
+}
+
 class ReceivePage extends StatelessWidget {
   const ReceivePage({super.key});
 
@@ -50,6 +72,8 @@ class ReceivePage extends StatelessWidget {
                       recipientLocation: 'คณะวิทยาการสารสนเทศ',
                       recipientName: 'Soduku',
                     ),
+                    // --- ADDED GREEN BUTTON ---
+                    _buildSubmitButton(context),
                     const SizedBox(
                       height: 24,
                     ), // Add some bottom padding if needed
@@ -79,7 +103,7 @@ class ReceivePage extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) =>
-                                const SearchRecipientScreen(), // Navigate to Search Screen
+                                const ReceivePage(), // Navigate to Search Screen
                           ),
                         );
                         print('กดปุ่ม: ส่งสินค้า');
@@ -107,12 +131,12 @@ class ReceivePage extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildActionButton(
                   context: context,
-                  label: 'สินค้าที่ต้องรับ',
+                  label: 'สินค้าที่ต้องส่ง',
                   icon: Icons.inventory_2,
                   iconColor: Colors.green.shade700,
                   onTap: () {
                     // Current page, do nothing or maybe refresh
-                    print('กดปุ่ม: สินค้าที่ต้องรับ');
+                    print('กดปุ่ม: สินค้าที่ต้องส่ง');
                   },
                 ),
               ],
@@ -285,7 +309,7 @@ class ReceivePage extends StatelessWidget {
       ),
       child: const Center(
         child: Text(
-          'รายการสินค้าที่ต้องรับ',
+          'รายการสินค้าที่ต้องส่ง',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
@@ -401,6 +425,41 @@ class ReceivePage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- NEW GREEN SUBMIT BUTTON WIDGET ---
+  Widget _buildSubmitButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 32.0, bottom: 8.0),
+      child: ElevatedButton(
+        onPressed: () {
+          // Handle send product action
+          print('กดปุ่ม ส่งสินค้า สีเขียว');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SearchRecipientScreen(),
+            ),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          elevation: 5,
+        ),
+        child: const Text(
+          'ส่งสินค้า',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
       ),
     );
   }

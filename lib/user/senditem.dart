@@ -137,29 +137,6 @@ class SendItemPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- ปุ่ม "เพิ่ม" ---
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: greenColor, // <-- ใช้ตัวแปรสีเขียว
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'เพิ่ม',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-
             // vvvv ส่วนที่เพิ่มเข้ามา vvvv
             const SizedBox(height: 32), // <-- เพิ่มระยะห่างก่อนรายการสินค้า
             _buildItemList(), // <-- เรียกใช้ฟังก์ชันสร้างรายการสินค้า

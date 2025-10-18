@@ -165,7 +165,25 @@ class _RegisterUserState extends State<RegisterUser> {
 
     setState(() => _submitting = true);
     try {
-      // สมัคร Auth (ล็อกอินจริงใช้ Firebase Auth)
+      // ***** ส่วนที่แก้ไข: ตรวจสอบเฉพาะเบอร์โทรซ้ำใน Firestore *****
+      final firestore = FirebaseFirestore.instance;
+
+      // ตรวจสอบเบอร์โทรใน collection 'users'
+      final phoneCheck = await firestore
+          .collection('users')
+          .where('phone_number', isEqualTo: phone)
+          .limit(1)
+          .get();
+
+      if (phoneCheck.docs.isNotEmpty) {
+        _showSnack('เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว');
+        if (mounted) setState(() => _submitting = false);
+        return; // หยุดการทำงาน
+      }
+      // **********************************************************
+
+
+      // สมัคร Auth (ส่วนนี้จะทำงานต่อเมื่อไม่พบข้อมูลซ้ำ)
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -442,7 +460,7 @@ class _RegisterUserState extends State<RegisterUser> {
       readOnly: isGpsField,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
-      onTap: isGpsField ? _selectGpsFromMap : null,
+      onTap: isGpsField ? () => _selectGpsFromMap() : null,
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
@@ -469,10 +487,10 @@ class _RegisterUserState extends State<RegisterUser> {
   Widget _buildPasswordField({
   required String hintText,
   IconData? icon,
-  TextEditingController? controller, 
+  TextEditingController? controller,
 }) {
   return TextFormField(
-    controller: controller ?? _passwordCtl, 
+    controller: controller ?? _passwordCtl,
     obscureText: true,
     decoration: InputDecoration(
       hintText: hintText,

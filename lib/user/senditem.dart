@@ -142,7 +142,6 @@ class _SendItemPageState extends State<SendItemPage> {
               ),
             ),
             const SizedBox(height: 24),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -168,6 +167,13 @@ class _SendItemPageState extends State<SendItemPage> {
             _buildItemList(),
             const SizedBox(height: 24),
             _buildSaveButton(context),
+            // vvvv ส่วนที่เพิ่มเข้ามา vvvv
+            const SizedBox(height: 32), // <-- เพิ่มระยะห่างก่อนรายการสินค้า
+            _buildItemList(), // <-- เรียกใช้ฟังก์ชันสร้างรายการสินค้า
+            const SizedBox(height: 24), // <-- เพิ่มระยะห่างก่อนปุ่มบันทึก
+            _buildSaveButton(context), // <-- เรียกใช้ฟังก์ชันสร้างปุ่มบันทึก
+            // ^^^^ จบส่วนที่เพิ่ม ^^^^
+
           ],
         ),
       ),

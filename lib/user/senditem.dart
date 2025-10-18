@@ -4,28 +4,48 @@ import 'package:delivery/user/more.dart';
 import 'package:delivery/user/receive.dart';
 import 'package:flutter/material.dart';
 
-class SendItemPage extends StatelessWidget {
-  const SendItemPage({super.key});
+// เปลี่ยนเป็น StatefulWidget
+class SendItemPage extends StatefulWidget {
+  // เพิ่มตัวแปรเพื่อรับข้อมูลผู้รับ
+  final Map<String, String> recipientData;
+
+  const SendItemPage({super.key, required this.recipientData});
+
+  @override
+  State<SendItemPage> createState() => _SendItemPageState();
+}
+
+class _SendItemPageState extends State<SendItemPage> {
+  static const Color primaryColor = Color(0xFFFEE146);
+  static const Color greenColor = Colors.green;
+
+  // ตัวแปรสำหรับเก็บข้อมูลผู้รับที่ได้รับมา
+  String _recipientName = 'ผู้รับ';
+  String _recipientPhone = 'ไม่ระบุเบอร์';
+  String _recipientAddress = 'ไม่ระบุที่อยู่';
+  String _recipientImageUrl = ''; // เริ่มต้นเป็นค่าว่าง
+
+  @override
+  void initState() {
+    super.initState();
+    // นำข้อมูลที่ได้รับมาใส่ใน State
+    _recipientName = widget.recipientData['name'] ?? _recipientName;
+    _recipientPhone = widget.recipientData['phone'] ?? _recipientPhone;
+    _recipientAddress = widget.recipientData['address'] ?? _recipientAddress;
+    _recipientImageUrl = widget.recipientData['imageUrl'] ?? _recipientImageUrl;
+  }
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryColor = Color(0xFFFEE146);
-    const Color greenColor =
-        Colors.green; // <-- ย้ายสีเขียวมาไว้ตรงนี้เพื่อให้ใช้ซ้ำได้
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // สีพื้นหลังเทาอ่อน
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        // ... (ส่วน AppBar เหมือนเดิม) ...
         backgroundColor: primaryColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DeliveryPage()),
-            );
+            Navigator.pop(context); // กลับไปหน้า search
           },
         ),
         title: const Text(
@@ -46,14 +66,12 @@ class SendItemPage extends StatelessWidget {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.center, // <-- จัดปุ่มบันทึกไปทางขวา
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // --- การ์ดข้อมูลผู้ใช้ ---
+            // --- การ์ดข้อมูลผู้ใช้ (แสดงข้อมูลจริง) ---
             _buildUserInfoCard(),
             const SizedBox(height: 24),
 
-            // --- ปุ่ม "แบบฟอร์มข้อมูลสินค้าที่จะส่ง" ---
             OutlinedButton(
               onPressed: () {},
               style: OutlinedButton.styleFrom(
@@ -77,12 +95,10 @@ class SendItemPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- พื้นที่อัปโหลดรูปภาพ ---
             Container(
               height: 150,
               width: 150,
-              alignment:
-                  Alignment.center, // <-- จัดไอคอนกล้องไว้ตรงกลาง Container
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -96,7 +112,6 @@ class SendItemPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // --- ปุ่มอัปโหลด/ถ่ายรูป ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -114,7 +129,6 @@ class SendItemPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- TextField รายละเอียดสินค้า ---
             TextField(
               maxLines: 5,
               decoration: InputDecoration(
@@ -125,25 +139,16 @@ class SendItemPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(15),
                   borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: const BorderSide(color: primaryColor, width: 2),
-                ),
               ),
             ),
             const SizedBox(height: 24),
 
-            // --- ปุ่ม "เพิ่ม" ---
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: greenColor, // <-- ใช้ตัวแปรสีเขียว
+                  backgroundColor: greenColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -159,13 +164,10 @@ class SendItemPage extends StatelessWidget {
                 ),
               ),
             ),
-
-            // vvvv ส่วนที่เพิ่มเข้ามา vvvv
-            const SizedBox(height: 32), // <-- เพิ่มระยะห่างก่อนรายการสินค้า
-            _buildItemList(), // <-- เรียกใช้ฟังก์ชันสร้างรายการสินค้า
-            const SizedBox(height: 24), // <-- เพิ่มระยะห่างก่อนปุ่มบันทึก
-            _buildSaveButton(context), // <-- เรียกใช้ฟังก์ชันสร้างปุ่มบันทึก
-            // ^^^^ จบส่วนที่เพิ่ม ^^^^
+            const SizedBox(height: 32),
+            _buildItemList(),
+            const SizedBox(height: 24),
+            _buildSaveButton(context),
           ],
         ),
       ),
@@ -173,7 +175,6 @@ class SendItemPage extends StatelessWidget {
     );
   }
 
-  // --- ฟังก์ชันสำหรับสร้างการ์ดข้อมูลผู้ใช้ --- (เหมือนเดิม)
   Widget _buildUserInfoCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -190,21 +191,26 @@ class SendItemPage extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 35,
-            backgroundColor: Colors.grey,
-            // child: Image.asset('assets/your_profile_pic.png'),
+            backgroundColor: Colors.grey.shade300,
+            backgroundImage: (_recipientImageUrl.isNotEmpty)
+                ? NetworkImage(_recipientImageUrl)
+                : null,
+            child: (_recipientImageUrl.isEmpty)
+                ? const Icon(Icons.person, size: 35, color: Colors.white)
+                : null,
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInfoRow('ชื่อ', 'ตัวดี'),
+                _buildInfoRow('ชื่อ', _recipientName),
                 const SizedBox(height: 4),
-                _buildInfoRow('หมายเลขโทรศัพท์', '0987490007'),
+                _buildInfoRow('หมายเลขโทรศัพท์', _recipientPhone),
                 const SizedBox(height: 4),
-                _buildInfoRow('ที่อยู่', 'หอพักกรุุหตาม'),
+                _buildInfoRow('ที่อยู่', _recipientAddress),
               ],
             ),
           ),
@@ -213,7 +219,6 @@ class SendItemPage extends StatelessWidget {
     );
   }
 
-  // --- ฟังก์ชันย่อยสำหรับแสดงข้อมูลใน Card --- (เหมือนเดิม)
   Widget _buildInfoRow(String label, String value) {
     return Text.rich(
       TextSpan(
@@ -234,7 +239,6 @@ class SendItemPage extends StatelessWidget {
     );
   }
 
-  // --- ฟังก์ชันสำหรับสร้างปุ่ม อัปโหลด/ถ่ายรูป --- (เหมือนเดิม)
   Widget _buildImageActionButton({
     required String label,
     required IconData icon,
@@ -252,7 +256,6 @@ class SendItemPage extends StatelessWidget {
     );
   }
 
-  // vvvv ฟังก์ชันใหม่: สร้างส่วนรายการสินค้า vvvv
   Widget _buildItemList() {
     return Container(
       padding: const EdgeInsets.all(12.0),
@@ -277,7 +280,7 @@ class SendItemPage extends StatelessWidget {
           _buildItemCard(
             imageUrl: "https://i.imgur.com/3Z0NpyA.png",
             description: "รองเท้า Nike",
-          ), // (ใช้รูป Placeholder)
+          ),
           const Divider(height: 16, thickness: 1),
           _buildItemCard(
             imageUrl: "https://i.imgur.com/kS9YnSg.png",
@@ -287,9 +290,7 @@ class SendItemPage extends StatelessWidget {
       ),
     );
   }
-  // ^^^^ ^^^^
 
-  // vvvv ฟังก์ชันใหม่: สร้างการ์ด 1 รายการ vvvv
   Widget _buildItemCard({
     required String imageUrl,
     required String description,
@@ -312,7 +313,7 @@ class SendItemPage extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F0F0), // สีพื้นหลังเทาอ่อนมากๆ
+                color: const Color(0xFFF0F0F0),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -344,11 +345,9 @@ class SendItemPage extends StatelessWidget {
       ),
     );
   }
-  // ^^^^ ^^^^
 
-  // vvvv ฟังก์ชันใหม่: สร้างปุ่มบันทึก vvvv
   Widget _buildSaveButton(BuildContext context) {
-    const Color greenColor = Colors.green; // <-- สีเขียวเดียวกับปุ่ม Add
+    const Color greenColor = Colors.green;
     return ElevatedButton(
       onPressed: () {
         Navigator.push(
@@ -371,9 +370,7 @@ class SendItemPage extends StatelessWidget {
       ),
     );
   }
-  // ^^^^ ^^^^
 
-  // --- Bottom Navigation Bar --- (เหมือนเดิม)
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -382,11 +379,11 @@ class SendItemPage extends StatelessWidget {
       onTap: (index) {
         switch (index) {
           case 0:
-            // (ถ้าอยู่ที่หน้าแรกแล้ว ไม่ต้องทำอะไร หรือ Refresh)
-            // Navigator.pushReplacement(
-            //   context,
-            //   MaterialPageRoute(builder: (context) => const DeliveryPage()),
-            // );
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const DeliveryPage()),
+              (Route<dynamic> route) => false,
+            );
             break;
           case 1:
             Navigator.push(
@@ -412,4 +409,4 @@ class SendItemPage extends StatelessWidget {
       ],
     );
   }
-} // <-- ปิดคลาส SendItemPage
+}

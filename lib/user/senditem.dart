@@ -1,15 +1,21 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
-import 'package:delivery/user/receive.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 
-// --- แก้ไข: ลบ class Config และ import ที่เกี่ยวกับ http ออก ---
+class CloudinaryConfig {
+  static const String cloudName = 'dwltvhlju';
+  static const String uploadPreset = 'delivery';
+}
 
 class SendItemPage extends StatefulWidget {
-  final Map<String, String> recipientData;
+  final Map<String, dynamic> recipientData;
   const SendItemPage({super.key, required this.recipientData});
 
   @override
@@ -20,25 +26,55 @@ class _SendItemPageState extends State<SendItemPage> {
   static const Color primaryColor = Color(0xFFFEE146);
   final ImagePicker _picker = ImagePicker();
 
-  Uint8List? _currentImageBytes;
+  Uint8List? _itemImageBytes;
   final TextEditingController _descriptionController = TextEditingController();
 
   bool _isSaving = false;
+  bool _isLoading = true;
 
+  String _recipientId = '';
   String _recipientName = 'ผู้รับ';
   String _recipientPhone = 'ไม่ระบุ';
   String _recipientAddress = 'ไม่ระบุ';
   String? _recipientImageUrl;
+  Map<String, dynamic>? _recipientGps;
+  Map<String, dynamic>? _senderData;
 
   @override
   void initState() {
     super.initState();
-    _recipientName = widget.recipientData['name'] ?? _recipientName;
-    _recipientPhone = widget.recipientData['phone'] ?? _recipientPhone;
-    _recipientAddress = widget.recipientData['address'] ?? _recipientAddress;
-    _recipientImageUrl = widget.recipientData['imageUrl'];
+    _loadInitialData();
   }
-  
+
+  Future<void> _loadInitialData() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception("ไม่พบผู้ใช้ที่ล็อกอินอยู่");
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      if (!doc.exists) throw Exception("ไม่พบข้อมูลผู้ส่งในระบบ");
+
+      _senderData = doc.data();
+      _recipientId = widget.recipientData['user_id'] ?? '';
+      _recipientName = widget.recipientData['name'] ?? 'ผู้รับ';
+      _recipientPhone = widget.recipientData['phone'] ?? 'ไม่ระบุ';
+      _recipientAddress = widget.recipientData['address'] ?? 'ไม่ระบุ';
+      _recipientImageUrl = widget.recipientData['imageUrl'];
+
+      final addresses = widget.recipientData['addresses'] as List<dynamic>?;
+      if (addresses != null && addresses.isNotEmpty) {
+        _recipientGps = (addresses.first as Map<String, dynamic>)['gps'];
+      }
+    } catch (e) {
+      if (mounted) _showSnack("เกิดข้อผิดพลาดในการโหลดข้อมูล: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _showSnack(String message, {bool isSuccess = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -54,82 +90,221 @@ class _SendItemPageState extends State<SendItemPage> {
     try {
       final xFile = await _picker.pickImage(source: source, imageQuality: 75);
       if (xFile == null) return;
-
       final bytes = await xFile.readAsBytes();
       if (!mounted) return;
-      setState(() {
-        _currentImageBytes = bytes;
-      });
+      setState(() => _itemImageBytes = bytes);
     } catch (e) {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');
     }
   }
 
-  // --- แก้ไข: ลบฟังก์ชัน _uploadImageToCustomServer ออกทั้งหมด ---
+  Future<String?> _uploadItemImageToCloudinary(Uint8List imageBytes) async {
+    final url = Uri.parse(
+      'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload',
+    );
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          imageBytes,
+          filename: 'item_upload.jpg',
+        ),
+      );
+    try {
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final responseData = await response.stream.bytesToString();
+        final decodedData = json.decode(responseData);
+        return decodedData['secure_url'];
+      } else {
+        _showSnack('อัปโหลดรูปสินค้าไม่สำเร็จ: ${response.reasonPhrase}');
+        return null;
+      }
+    } catch (e) {
+      _showSnack('เกิดข้อผิดพลาดในการเชื่อมต่อ Cloudinary: $e');
+      return null;
+    }
+  }
+
+  // senditem.dart
+
+  // ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
 
   Future<void> _saveAllData() async {
     final description = _descriptionController.text.trim();
-
-    if (_currentImageBytes == null || description.isEmpty) {
+    if (_itemImageBytes == null || description.isEmpty) {
       _showSnack('กรุณาเลือกรูปภาพและระบุรายละเอียดสินค้าให้ครบถ้วน');
       return;
     }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    // หมายเหตุ: ส่วนนี้ยังคงใช้ Mock Data อยู่ หากต้องการใช้ข้อมูลจริง
-    // คุณจะต้องดึงข้อมูลที่อยู่ของผู้ส่งและผู้รับมาใช้งานแทน mockSenderAddress และ mockReceiverAddress
-    final Map<String, dynamic> mockSenderAddress = {
-      'address_text': 'หอพักต้นทาง',
-      'latitude': 16.4884,
-      'longitude': 102.8336,
-    };
-    final Map<String, dynamic> mockReceiverAddress = {
-      'address_text': _recipientAddress, // ใช้ที่อยู่ผู้รับจริง
-      'latitude': 16.5000, // ควรใช้ lat,lng จริงของผู้รับ
-      'longitude': 102.8500, // ควรใช้ lat,lng จริงของผู้รับ
-    };
+    if (_senderData == null || _recipientId.isEmpty) {
+      _showSnack('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ส่งหรือผู้รับ');
+      return;
+    }
+    setState(() => _isSaving = true);
 
     try {
-      // หมายเหตุ: ส่วนนี้ยังไม่ได้ทำการอัปโหลดรูปภาพสินค้าไปที่ไหน
-      // ในอนาคตคุณต้องเพิ่ม Logic การอัปโหลดรูปสินค้า (เช่น ไปที่ Cloudinary หรือ Firebase Storage)
-      // แล้วนำ URL ที่ได้มาใส่ใน itemsPayload
-      final List<Map<String, String>> itemsPayload = [
-        {'description': description, 'proof_image_url': 'YOUR_ITEM_IMAGE_URL_HERE'},
-      ];
+      // 1. อัปโหลดรูปสินค้าไป Cloudinary (เหมือนเดิม)
+      final String? itemImageUrl = await _uploadItemImageToCloudinary(
+        _itemImageBytes!,
+      );
+      if (itemImageUrl == null) {
+        // หากอัปโหลดไม่สำเร็จ ให้หยุดการทำงาน
+        setState(() => _isSaving = false);
+        return;
+      }
 
+      // 2. ดึง user_id ของผู้ส่ง (ผู้ใช้ปัจจุบัน)
+      final senderId = FirebaseAuth.instance.currentUser?.uid;
+      if (senderId == null) {
+        throw Exception("ไม่สามารถระบุตัวตนผู้ส่งได้");
+      }
 
-      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('createPackage');
+      // 3. (ส่วนที่แก้ไข) สร้างข้อมูลที่จะบันทึกลง Firestore โดยตรง
+      final packageData = <String, dynamic>{
+        // --- ข้อมูลหลัก ---
+        'sender_user_id': senderId, // user_id ของผู้ส่ง
+        'receiver_user_id': _recipientId, // user_id ของผู้รับ
+        'package_description': description, // ข้อความที่ส่งถึง
+        'proof_image_url': itemImageUrl, // รูปสินค้าจาก Cloudinary
+        'created_at': Timestamp.now(), // วันที่และเวลาที่สร้างรายการ
+        'status': 'pending', // สถานะเริ่มต้น (แนะนำให้มี)
+        // --- ข้อมูลผู้รับ (Snapshot ณ เวลาที่ส่ง) ---
+        'receiver_info': {
+          'name': _recipientName,
+          'phone': _recipientPhone,
+          'address': _recipientAddress,
+        },
+        // --- ข้อมูลผู้ส่ง (Snapshot ณ เวลาที่ส่ง) ---
+        'sender_info': {
+          'name': _senderData?['name'] ?? 'ไม่ระบุ',
+          'phone': _senderData?['phone_number'] ?? 'ไม่ระบุ', // <-- เพิ่มบรรทัดนี้
+        },
+      };
 
-      final result = await callable.call(<String, dynamic>{
-        'senderAddress': mockSenderAddress,
-        'receiverAddress': mockReceiverAddress,
-        'items': itemsPayload,
-        'pkgDescription': description,
-      });
+      // 4. (ส่วนที่แก้ไข) บันทึกข้อมูลลงใน collection 'packages'
+      await FirebaseFirestore.instance.collection('packages').add(packageData);
 
       _showSnack('สร้างรายการส่งสินค้าสำเร็จ!', isSuccess: true);
-
       if (!mounted) return;
-      // ควรจะไปยังหน้าสถานะ หรือหน้าประวัติ มากกว่ากลับไปหน้า Receive
-      Navigator.pushReplacement(
+      // ไปยังหน้าประวัติการส่ง
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HistoryPage()),
+        (route) => false,
       );
-
-    } on FirebaseFunctionsException catch (e) {
-      _showSnack('สร้างรายการส่งสินค้าไม่สำเร็จ: ${e.message}');
     } catch (e) {
-      _showSnack('เกิดข้อผิดพลาดที่ไม่คาดคิด: $e');
+      // ปรับปรุงการแสดงข้อผิดพลาดให้ครอบคลุมมากขึ้น
+      _showSnack('เกิดข้อผิดพลาดในการบันทึกข้อมูล: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  // ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      appBar: AppBar(
+        backgroundColor: primaryColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'ส่งสินค้า',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.amber))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildUserInfoCard(),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () => _pickImage(ImageSource.gallery),
+                      child: Container(
+                        height: 150,
+                        width: 150,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 2,
+                          ),
+                        ),
+                        child: _itemImageBytes != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Image.memory(
+                                  _itemImageBytes!,
+                                  fit: BoxFit.cover,
+                                  width: 150,
+                                  height: 150,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 60,
+                                color: Colors.grey,
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildImageActionButton(
+                        label: 'อัปโหลดรูปสินค้า',
+                        icon: Icons.add_photo_alternate_outlined,
+                        color: primaryColor,
+                        onPressed: () => _pickImage(ImageSource.gallery),
+                      ),
+                      _buildImageActionButton(
+                        label: 'ถ่ายรูปสินค้า',
+                        icon: Icons.camera_alt_outlined,
+                        color: primaryColor,
+                        onPressed: () => _pickImage(ImageSource.camera),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 5,
+                    decoration: InputDecoration(
+                      hintText: 'รายละเอียดสินค้า :',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Align(
+                    alignment: Alignment.center,
+                    child: _buildSaveButton(context),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
+    );
   }
 
   Widget _buildImageActionButton({
@@ -168,7 +343,7 @@ class _SendItemPageState extends State<SendItemPage> {
               ),
             )
           : const Text(
-              'บันทึก และ ไปหน้าผู้รับ',
+              'บันทึก',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -178,112 +353,6 @@ class _SendItemPageState extends State<SendItemPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: primaryColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'ส่งสินค้า',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.black.withOpacity(0.15),
-              child: const Icon(Icons.person, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildUserInfoCard(),
-            const SizedBox(height: 24),
-            Center(
-              child: Container(
-                height: 150,
-                width: 150,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                ),
-                child: _currentImageBytes != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.memory(
-                          _currentImageBytes!,
-                          fit: BoxFit.cover,
-                          width: 150,
-                          height: 150,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.camera_alt_outlined,
-                        size: 60,
-                        color: Colors.grey,
-                      ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildImageActionButton(
-                  label: 'อัปโหลดรูปสินค้า',
-                  icon: Icons.add_photo_alternate_outlined,
-                  color: primaryColor,
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                ),
-                _buildImageActionButton(
-                  label: 'ถ่ายรูปสินค้า',
-                  icon: Icons.camera_alt_outlined,
-                  color: primaryColor,
-                  onPressed: () => _pickImage(ImageSource.camera),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: 'รายละเอียดสินค้า :',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Align(
-              alignment: Alignment.center,
-              child: _buildSaveButton(context),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavigationBar(context),
-    );
-  }
-  
-  // --- ไม่ต้องแก้ไขส่วนนี้ โค้ดถูกต้องแล้ว ---
   Widget _buildUserInfoCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -303,16 +372,19 @@ class _SendItemPageState extends State<SendItemPage> {
           CircleAvatar(
             radius: 35,
             backgroundColor: Colors.grey.shade300,
-            child: (_recipientImageUrl != null && _recipientImageUrl!.isNotEmpty)
+            child:
+                (_recipientImageUrl != null && _recipientImageUrl!.isNotEmpty)
                 ? ClipOval(
                     child: Image.network(
                       _recipientImageUrl!,
                       width: 70,
                       height: 70,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.person, color: Colors.white, size: 35);
-                      },
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 35,
+                      ),
                     ),
                   )
                 : const Icon(Icons.person, color: Colors.white, size: 35),
@@ -362,7 +434,7 @@ class _SendItemPageState extends State<SendItemPage> {
       unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
       currentIndex: 0,
       onTap: (index) {
-        if (index == 0) return; // Prevent navigating to the same page
+        if (index == 0) return;
         switch (index) {
           case 1:
             Navigator.push(

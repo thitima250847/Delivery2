@@ -1,16 +1,23 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
-import 'package:delivery/config/config_Img.dart';
 import 'package:delivery/map/map_register.dart';
 import 'package:delivery/rider/registerRider.dart';
 import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:crypto/crypto.dart';
+
+// ***** 1. เพิ่ม Config สำหรับ Cloudinary *****
+class CloudinaryConfig {
+  static const String cloudName = 'dwltvhlju';
+  static const String uploadPreset = 'delivery';
+}
+// ******************************************
 
 class RegisterUser extends StatefulWidget {
   const RegisterUser({super.key});
@@ -24,14 +31,15 @@ class _RegisterUserState extends State<RegisterUser> {
   final _nameCtl = TextEditingController();
   final _emailCtl = TextEditingController();
   final _phoneCtl = TextEditingController();
-  final _addressCtl = TextEditingController(); // ชื่อที่อยู่จาก MapPicker (ใช้เติมอัตโนมัติถ้ามี)
+  final _addressCtl = TextEditingController();
   final _passwordCtl = TextEditingController();
-  final _gpsCtl = TextEditingController(); // รูปแบบ "ที่อยู่ (lat, lng)" จาก MapPicker
+  final _gpsCtl = TextEditingController();
 
   // image state
   final _picker = ImagePicker();
-  Uint8List? _imageBytes; // preview
-  String? _imageExtension; // นามสกุลไฟล์รูป
+  Uint8List? _imageBytes; // สำหรับแสดงผล preview
+  String? _imageExtension;
+  File? _imageFile; // แก้ไข: เพิ่มตัวแปรสำหรับเก็บ File
 
   bool _submitting = false;
 
@@ -47,29 +55,39 @@ class _RegisterUserState extends State<RegisterUser> {
   }
 
   void _showSnack(String msg, {bool ok = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: ok ? Colors.green : Colors.red),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: ok ? Colors.green : Colors.red,
+      ),
     );
   }
 
-  // -------------------- Password hashing (hash only, no salt) --------------------
   String _hashPasswordOnly(String password) {
     final bytes = utf8.encode(password);
     final digest = sha256.convert(bytes);
-    return base64Encode(digest.bytes); // เก็บเป็น base64 อ่านง่าย
+    return base64Encode(digest.bytes);
   }
-  // ------------------------------------------------------------------------------
 
   Future<void> _pickImage() async {
     try {
-      final xFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
+      final xFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 75,
+      );
       if (xFile == null) return;
 
       final fileExtension = xFile.path.split('.').last.toLowerCase();
-      if (fileExtension != 'jpg' && fileExtension != 'jpeg' && fileExtension != 'png') {
+      if (fileExtension != 'jpg' &&
+          fileExtension != 'jpeg' &&
+          fileExtension != 'png') {
         _showSnack('ไม่รองรับไฟล์ประเภทนี้ (รองรับเฉพาะ jpg, jpeg, png)');
         return;
       }
+
+      // แก้ไข: เก็บ File ไว้เพื่ออัปโหลด
+      _imageFile = File(xFile.path);
 
       final bytes = await xFile.readAsBytes();
       if (!mounted) return;
@@ -82,49 +100,38 @@ class _RegisterUserState extends State<RegisterUser> {
     }
   }
 
-  // อัปโหลดรูปไป custom server
-  Future<String?> _uploadProfileToCustomServer(
-    String uid,
-    Uint8List imageBytes,
-    String fileExtension,
-  ) async {
-    final uri = Uri.parse('${Config.baseUrl}/upload');
-    final request = http.MultipartRequest('POST', uri);
-
-    final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
-    final file = http.MultipartFile.fromBytes(
-      'file',
-      imageBytes,
-      filename: '$uid.$fileExtension',
-      contentType: MediaType('image', contentType),
+  Future<String?> _uploadProfileToCloudinary(Uint8List imageBytes) async {
+    final url = Uri.parse(
+      'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload',
     );
 
-    request.files.add(file);
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          imageBytes,
+          filename: 'upload.jpg',
+        ),
+      );
 
     try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = json.decode(response.body);
-        final receivedFilename = responseData['filename'];
-        if (receivedFilename != null) {
-          final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
-          return imageUrl;
-        } else {
-          _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
-          return null;
-        }
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final responseData = await response.stream.bytesToString();
+        final decodedData = json.decode(responseData);
+        return decodedData['secure_url'];
       } else {
-        _showSnack('อัปโหลดรูปไม่สำเร็จ: Server error ${response.statusCode}');
+        _showSnack('อัปโหลดไป Cloudinary ไม่สำเร็จ: ${response.reasonPhrase}');
         return null;
       }
     } catch (e) {
-      _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
+      _showSnack('เกิดข้อผิดพลาดในการเชื่อมต่อ Cloudinary: $e');
       return null;
     }
   }
 
+  // --- ฟังก์ชันนี้ถูกต้องแล้ว ---
   ({String? place, double? lat, double? lng}) _parseGps(String raw) {
     try {
       final regex = RegExp(r'^(.*)\s*\(([-\d.]+),\s*([-\d.]+)\)$');
@@ -165,10 +172,8 @@ class _RegisterUserState extends State<RegisterUser> {
 
     setState(() => _submitting = true);
     try {
-      // ***** ส่วนที่แก้ไข: ตรวจสอบเฉพาะเบอร์โทรซ้ำใน Firestore *****
       final firestore = FirebaseFirestore.instance;
 
-      // ตรวจสอบเบอร์โทรใน collection 'users'
       final phoneCheck = await firestore
           .collection('users')
           .where('phone_number', isEqualTo: phone)
@@ -178,30 +183,28 @@ class _RegisterUserState extends State<RegisterUser> {
       if (phoneCheck.docs.isNotEmpty) {
         _showSnack('เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว');
         if (mounted) setState(() => _submitting = false);
-        return; // หยุดการทำงาน
+        return;
       }
-      // **********************************************************
 
-
-      // สมัคร Auth (ส่วนนี้จะทำงานต่อเมื่อไม่พบข้อมูลซ้ำ)
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final uid = cred.user!.uid;
 
-      // อัปโหลดรูป (ถ้ามี)
       String? url;
-      if (_imageBytes != null && _imageExtension != null) {
-        url = await _uploadProfileToCustomServer(uid, _imageBytes!, _imageExtension!);
+      if (_imageBytes != null) {
+        url = await _uploadProfileToCloudinary(_imageBytes!);
       }
 
-      // สร้าง hash อย่างเดียว (ไม่มี salt)
       final passwordHash = _hashPasswordOnly(password);
 
-      // เขียน Firestore (ไม่มีการเก็บรหัสผ่านดิบ, ไม่มี salt)
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      // --- แก้ไข: รวม Transaction การเขียนข้อมูล ---
+      await firestore.runTransaction((transaction) async {
+        final userRef = firestore.collection('users').doc(uid);
+
+        // 1. สร้างเอกสารผู้ใช้
+        transaction.set(userRef, {
           'user_id': uid,
           'name': name,
           'user_email': email,
@@ -210,25 +213,23 @@ class _RegisterUserState extends State<RegisterUser> {
           'auth_uid': uid,
           'password_hash': passwordHash,
           'created_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+          'addresses': [], // เริ่มต้นด้วย array ว่าง
+        });
 
-        // ที่อยู่จาก GPS field
-        final gps = _parseGps(gpsRaw);
+        // 2. ถ้ามี GPS, ให้อัปเดต array ที่อยู่
+        final gps = _parseGps(gpsRaw); // <-- แก้ไข: เรียกใช้ _parseGps ที่นี่
         if (gps.lat != null && gps.lng != null && gps.place != null) {
-          await FirebaseFirestore.instance.collection('addresses').add({
-            'owner_user_id': uid,
-            'address_text': gps.place,
-            'gps': {'lat': gps.lat, 'lng': gps.lng},
-            'created_at': FieldValue.serverTimestamp(),
-          });
-
-          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          transaction.update(userRef, {
             'addresses': FieldValue.arrayUnion([
-              {'address_text': gps.place},
+              {
+                'address_text': gps.place,
+                'gps': {'lat': gps.lat, 'lng': gps.lng},
+              },
             ]),
           });
         }
       });
+      // ---------------------------------------------
 
       if (!mounted) return;
       _showSnack('สมัครสมาชิกสำเร็จ', ok: true);
@@ -240,7 +241,7 @@ class _RegisterUserState extends State<RegisterUser> {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
         'invalid-email' => 'รูปแบบอีเมลไม่ถูกต้อง',
-        'weak-password' => 'รหัสผ่านไม่ปลอดภัย (อย่างน้อย 6 ตัวอักษร)',
+        'weak-password' => 'รหัสผ่านไม่ปลอดภัย',
         _ => 'สมัครไม่สำเร็จ: ${e.message ?? e.code}',
       };
       _showSnack(msg);
@@ -276,7 +277,6 @@ class _RegisterUserState extends State<RegisterUser> {
     }
   }
 
-  // ===================== UI (ตามเดิม) =====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -297,8 +297,10 @@ class _RegisterUserState extends State<RegisterUser> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('สมัครสมาชิก',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
+              const Text(
+                'สมัครสมาชิก',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
+              ),
               const SizedBox(height: 20),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -314,8 +316,10 @@ class _RegisterUserState extends State<RegisterUser> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text('ผู้ใช้ระบบ',
-                            style: TextStyle(color: Colors.white, fontSize: 16)),
+                        child: const Text(
+                          'ผู้ใช้ระบบ',
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -337,8 +341,10 @@ class _RegisterUserState extends State<RegisterUser> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text('ไรเดอร์',
-                            style: TextStyle(color: Colors.black, fontSize: 16)),
+                        child: const Text(
+                          'ไรเดอร์',
+                          style: TextStyle(color: Colors.black, fontSize: 16),
+                        ),
                       ),
                     ),
                   ],
@@ -352,38 +358,43 @@ class _RegisterUserState extends State<RegisterUser> {
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           children: [
-            // รูปโปรไฟล์
-            Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(60.0),
-                        child: _imageBytes != null
-                            ? Image.memory(_imageBytes!, width: 120, height: 120, fit: BoxFit.cover)
-                            : Container(
-                                width: 120,
-                                height: 120,
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.person, size: 60, color: Colors.white),
-                              ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(4.0),
-                        decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                        child: const Icon(Icons.add, color: Colors.white, size: 20),
-                      ),
-                    ],
+            GestureDetector(
+              onTap: _pickImage,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(60.0),
+                    child: _imageBytes != null
+                        ? Image.memory(
+                            _imageBytes!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            width: 120,
+                            height: 120,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
-                ),
-              ],
+                  Container(
+                    padding: const EdgeInsets.all(4.0),
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 30),
-
             _buildTextField(
               hintText: 'ชื่อ-สกุล',
               icon: Icons.person_outline,
@@ -420,7 +431,6 @@ class _RegisterUserState extends State<RegisterUser> {
               isGpsField: true,
             ),
             const SizedBox(height: 30),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -436,7 +446,11 @@ class _RegisterUserState extends State<RegisterUser> {
                     ? const CircularProgressIndicator(color: Colors.black)
                     : const Text(
                         'สมัครสมาชิก',
-                        style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ),
@@ -446,7 +460,6 @@ class _RegisterUserState extends State<RegisterUser> {
     );
   }
 
-  // -------------------- widgets --------------------
   Widget _buildTextField({
     required String hintText,
     IconData? icon,
@@ -464,7 +477,9 @@ class _RegisterUserState extends State<RegisterUser> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF5B5B5B)) : null,
+        prefixIcon: icon != null
+            ? Icon(icon, color: const Color(0xFF5B5B5B))
+            : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
@@ -479,42 +494,51 @@ class _RegisterUserState extends State<RegisterUser> {
           borderRadius: BorderRadius.circular(10.0),
           borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 16.0,
+        ),
       ),
     );
   }
 
   Widget _buildPasswordField({
-  required String hintText,
-  IconData? icon,
-  TextEditingController? controller,
-}) {
-  return TextFormField(
-    controller: controller ?? _passwordCtl,
-    obscureText: true,
-    decoration: InputDecoration(
-      hintText: hintText,
-      hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
-      prefixIcon: icon != null
-          ? Icon(icon, color: const Color(0xFF5B5B5B))
-          : null,
-      suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF5B5B5B)),
-      filled: true,
-      fillColor: const Color(0xFFEFEFEF),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-        borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
+    required String hintText,
+    IconData? icon,
+    TextEditingController? controller,
+  }) {
+    return TextFormField(
+      controller: controller ?? _passwordCtl,
+      obscureText: true,
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: const TextStyle(color: Color(0xFF5B5B5B)),
+        prefixIcon: icon != null
+            ? Icon(icon, color: const Color(0xFF5B5B5B))
+            : null,
+        suffixIcon: const Icon(
+          Icons.remove_red_eye_outlined,
+          color: Color(0xFF5B5B5B),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFEFEFEF),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.0),
+          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.0),
+          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.0),
+          borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 16.0,
+        ),
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-        borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-        borderSide: const BorderSide(color: Color(0xFFFEE600), width: 2.0),
-      ),
-      contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
-    ),
-  );
-}
+    );
+  }
 }

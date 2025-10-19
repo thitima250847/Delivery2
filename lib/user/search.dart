@@ -2,7 +2,7 @@ import 'package:delivery/user/senditem.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:delivery/config/config_Img.dart';
+// ลบ import 'package:delivery/config/config_Img.dart' hide Config; ออก
 
 class SearchRecipientScreen extends StatefulWidget {
   const SearchRecipientScreen({Key? key}) : super(key: key);
@@ -19,7 +19,7 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
 
-  String? _myPhotoUrl; // รูปโปรไฟล์ของผู้ใช้ปัจจุบัน
+  String? _myPhotoUrl;
 
   @override
   void initState() {
@@ -32,12 +32,8 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
     _searchController.dispose();
     super.dispose();
   }
-
-  // เติม baseUrl ถ้าค่าเป็น path
-  String _resolveImageUrl(String raw) {
-    if (raw.startsWith('http')) return raw;
-    return '${Config.baseUrl}/${raw.replaceFirst(RegExp(r'^/'), '')}';
-  }
+  
+  // --- ลบฟังก์ชัน _resolveImageUrl ออก ---
 
   Future<void> _loadMyAvatar() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -48,15 +44,14 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
           .doc(uid)
           .get();
       final data = doc.data();
-      if (mounted) {
+      if (mounted && data != null) {
         setState(() {
-          final val = (data?['profile_image'] as String?)?.trim();
-          _myPhotoUrl =
-              (val != null && val.isNotEmpty) ? _resolveImageUrl(val) : null;
+          // --- แก้ไข: ใช้ URL จาก Firestore โดยตรง ---
+          _myPhotoUrl = data['profile_image'] as String?;
         });
       }
     } catch (_) {
-      // เงียบไว้ ถ้าโหลดรูปไม่ได้จะโชว์ไอคอนเริ่มต้นแทน
+      // Handle error silently
     }
   }
 
@@ -94,14 +89,11 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
                       'ไม่ระบุที่อยู่';
             }
             data['address'] = addressText;
-
-            // เตรียมรูปให้เป็น URL ที่ใช้งานได้
-            final rawImg = (data['profile_image'] as String?)?.trim();
-            if (rawImg != null && rawImg.isNotEmpty) {
-              data['profile_image'] = _resolveImageUrl(rawImg);
-            } else {
-              data['profile_image'] = '';
-            }
+            
+            // --- แก้ไข: ไม่ต้อง resolve URL แล้ว ---
+            // Firestore มี URL ที่สมบูรณ์จาก Cloudinary อยู่แล้ว
+            // เราแค่ต้องแน่ใจว่าค่าที่ได้เป็น String
+            data['profile_image'] = data['profile_image'] as String? ?? '';
 
             return data;
           })
@@ -145,9 +137,10 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
             child: CircleAvatar(
               radius: 25,
               backgroundColor: Colors.grey.shade300,
+              // --- แก้ไข: ตรวจสอบ _myPhotoUrl ที่อาจเป็น null หรือ "" ---
               backgroundImage:
-                  _myPhotoUrl != null ? NetworkImage(_myPhotoUrl!) : null,
-              child: _myPhotoUrl == null
+                  (_myPhotoUrl != null && _myPhotoUrl!.isNotEmpty) ? NetworkImage(_myPhotoUrl!) : null,
+              child: (_myPhotoUrl == null || _myPhotoUrl!.isEmpty)
                   ? const Icon(Icons.person, color: Colors.black54, size: 28)
                   : null,
             ),
@@ -220,7 +213,7 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
     final String name = user['name'] ?? 'ไม่มีชื่อ';
     final String phone = user['phone_number'] ?? 'ไม่มีเบอร์';
     final String address = user['address'] ?? 'ไม่ระบุที่อยู่';
-    final String? imageUrl = (user['profile_image'] as String?);
+    final String? imageUrl = user['profile_image'] as String?;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -231,14 +224,11 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
           child: (imageUrl != null && imageUrl.isNotEmpty)
               ? ClipOval(
                   child: Image.network(
-                    // บังคับให้เป็น URL ที่ใช้ได้เสมอ (รองรับกรณีเป็น path)
-                    imageUrl.startsWith('http')
-                        ? imageUrl
-                        : '${Config.baseUrl}/${imageUrl.replaceFirst(RegExp(r'^/'), '')}',
+                    // --- แก้ไข: ไม่ต้องต่อ String แล้ว ---
+                    imageUrl, 
                     width: 50,
                     height: 50,
                     fit: BoxFit.cover,
-                    // ถ้าโหลดรูปไม่ได้ ให้แสดงไอคอนคนแทน
                     errorBuilder: (context, error, stackTrace) {
                       return const Icon(Icons.person, color: Colors.white);
                     },

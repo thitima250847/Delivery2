@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'dart:math';                        
+import 'dart:math';
 import 'dart:typed_data';
-import 'package:delivery/config/config_Img.dart';
 import 'package:delivery/user/login.dart';
 import 'package:delivery/user/registerUser.dart';
 import 'package:flutter/material.dart';
@@ -9,8 +8,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:crypto/crypto.dart';
+
+// ***** 1. เพิ่ม Config สำหรับ Cloudinary *****
+class CloudinaryConfig {
+  static const String cloudName = 'dwltvhlju'; // <-- ใส่ Cloud Name ของคุณ
+  static const String uploadPreset = 'delivery'; // <-- ใส่ Upload Preset ของคุณ
+}
+// ******************************************
+
 
 class RegisterRider extends StatefulWidget {
   const RegisterRider({super.key});
@@ -32,8 +38,8 @@ class _RegisterRiderState extends State<RegisterRider> {
 
   // image state
   final _picker = ImagePicker();
-  Uint8List? _imageBytes;       
-  String? _imageExtension;      
+  Uint8List? _imageBytes;
+  String? _imageExtension;
 
   bool _submitting = false;
 
@@ -48,12 +54,13 @@ class _RegisterRiderState extends State<RegisterRider> {
   }
 
   void _showSnack(String message, {bool success = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: success ? Colors.green : Colors.red),
     );
   }
 
-  // ---------- Helpers สำหรับ Hash รหัสผ่าน ----------
+  // Helpers สำหรับ Hash รหัสผ่าน (เหมือนเดิม)
   Uint8List _generateSalt([int length = 16]) {
     final r = Random.secure();
     return Uint8List.fromList(List<int>.generate(length, (_) => r.nextInt(256)));
@@ -68,9 +75,8 @@ class _RegisterRiderState extends State<RegisterRider> {
     }
     return base64Encode(bytes);
   }
-  // --------------------------------------------------
 
-  // เลือกรูป
+  // เลือกรูป (เหมือนเดิม)
   Future<void> _pickImage() async {
     try {
       final xFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
@@ -94,50 +100,33 @@ class _RegisterRiderState extends State<RegisterRider> {
     }
   }
 
-  // อัปโหลดรูปไป Custom Server
-  Future<String?> _uploadProfileToCustomServer(
-    String uid,
-    Uint8List imageBytes,
-    String fileExtension,
-  ) async {
-    final uri = Uri.parse('${Config.baseUrl}/upload');
-    final request = http.MultipartRequest('POST', uri);
-    final contentType = fileExtension == 'png' ? 'png' : 'jpeg';
-
-    final file = http.MultipartFile.fromBytes(
-      'file',
-      imageBytes,
-      filename: '$uid.$fileExtension',
-      contentType: MediaType('image', contentType),
-    );
-
-    request.files.add(file);
+  // ***** 2. เพิ่มฟังก์ชันสำหรับอัปโหลดไป Cloudinary *****
+  Future<String?> _uploadProfileToCloudinary(Uint8List imageBytes) async {
+    final url = Uri.parse(
+        'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload');
+    
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
+      ..files.add(http.MultipartFile.fromBytes('file', imageBytes, filename: 'upload.jpg'));
 
     try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = json.decode(response.body);
-        final receivedFilename = responseData['filename'];
-        if (receivedFilename != null) {
-          final imageUrl = '${Config.baseUrl}/upload/$receivedFilename';
-          return imageUrl;
-        } else {
-          _showSnack('อัปโหลดรูปไม่สำเร็จ: ไม่ได้รับชื่อไฟล์จากเซิร์ฟเวอร์');
-          return null;
-        }
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final responseData = await response.stream.bytesToString();
+        final decodedData = json.decode(responseData);
+        return decodedData['secure_url'];
       } else {
-        _showSnack('อัปโหลดรูปไม่สำเร็จ: Server error ${response.statusCode}');
+        _showSnack('อัปโหลดไป Cloudinary ไม่สำเร็จ: ${response.reasonPhrase}');
         return null;
       }
     } catch (e) {
-      _showSnack('อัปโหลดรูปไม่สำเร็จ: $e');
+      _showSnack('เกิดข้อผิดพลาดในการเชื่อมต่อ Cloudinary: $e');
       return null;
     }
   }
+  // *******************************************************
 
-  // สมัครสมาชิก + เขียน Firestore (เพิ่ม Hash)
+  // สมัครสมาชิก + เขียน Firestore
   Future<void> _onRegisterPressed() async {
     if (_submitting) return;
 
@@ -166,24 +155,25 @@ class _RegisterRiderState extends State<RegisterRider> {
 
     setState(() => _submitting = true);
     try {
-      // 1) สร้างผู้ใช้ใน Firebase Auth (Auth เก็บรหัสผ่านอย่างปลอดภัยแล้ว)
+      // 1) สร้างผู้ใช้ใน Firebase Auth
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final uid = cred.user!.uid;
 
-      // 2) อัปโหลดรูปไปเซิร์ฟเวอร์
+      // ***** 3. เปลี่ยนมาเรียกใช้อัปโหลดไป Cloudinary *****
       String? url;
-      if (_imageBytes != null && _imageExtension != null) {
-        url = await _uploadProfileToCustomServer(uid, _imageBytes!, _imageExtension!);
+      if (_imageBytes != null) {
+        url = await _uploadProfileToCloudinary(_imageBytes!);
       }
+      // **************************************************
 
-      // 3) สร้าง salt + hash สำหรับเก็บใน riders (เพื่ออ้างอิง/ตรวจสอบภายหลัง ไม่ใช้แทน Auth)
+      // 3) สร้าง salt + hash (เหมือนเดิม)
       final salt = _generateSalt(16);
       final passwordHash = _hashPassword(password, salt, iterations: 10000);
 
-      // 4) บันทึกข้อมูล rider (ไม่มีการเก็บรหัสผ่านดิบ)
+      // 4) บันทึกข้อมูล rider (ใช้ url จาก Cloudinary)
       await FirebaseFirestore.instance.collection('riders').doc(uid).set({
         'user_id': uid,
         'auth_uid': uid,
@@ -191,11 +181,13 @@ class _RegisterRiderState extends State<RegisterRider> {
         'rider_email': email,
         'phone_number': phone,
         'license_plate': plate,
-        'vehicle_image': url,
+        'vehicle_image': url, // <-- url จาก Cloudinary จะถูกบันทึกที่นี่
         'is_available': false,
         'current_latitude': null,
         'current_longitude': null,
         'password_hash': passwordHash,
+        // เพิ่ม salt เข้าไปใน Firestore เพื่อใช้ตรวจสอบรหัสผ่านในอนาคต
+        'password_salt': base64Encode(salt), 
         'created_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -211,9 +203,9 @@ class _RegisterRiderState extends State<RegisterRider> {
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'email-already-in-use' => 'อีเมลนี้ถูกใช้แล้ว',
-        'invalid-email'       => 'รูปแบบอีเมลไม่ถูกต้อง',
-        'weak-password'       => 'รหัสผ่านไม่ปลอดภัย (อย่างน้อย 6 ตัวอักษร)',
-        _                     => 'สมัครไม่สำเร็จ: ${e.message ?? e.code}',
+        'invalid-email' => 'รูปแบบอีเมลไม่ถูกต้อง',
+        'weak-password' => 'รหัสผ่านไม่ปลอดภัย (อย่างน้อย 6 ตัวอักษร)',
+        _ => 'สมัครไม่สำเร็จ: ${e.message ?? e.code}',
       };
       _showSnack(msg);
     } catch (e) {
@@ -225,7 +217,7 @@ class _RegisterRiderState extends State<RegisterRider> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ UI เดิมทั้งหมด
+    // UI ทั้งหมดเหมือนเดิม ไม่ต้องแก้ไข
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(

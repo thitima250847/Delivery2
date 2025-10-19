@@ -1,68 +1,199 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:delivery/map/map_register.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 
-// (You can delete main() and MyApp() if integrating into an existing project)
-
-class UserProfileScreen extends StatelessWidget {
+class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
 
-  // Main yellow color
+  @override
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
+}
+
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  // Main colors
   static const Color primaryYellow = Color(0xFFFDE428);
-  // Background color for input fields
   static const Color fieldBgColor = Color(0xFFF5F5F5);
-  // Green color for the plus icon
   static const Color plusGreen = Color(0xFF28C76F);
+
+  // State variables
+  bool _isLoading = true;
+  Map<String, dynamic>? _userData;
+  List<dynamic> _userAddresses = [];
+
+  bool _isAddingAddress = false;
+  final TextEditingController _newAddressController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  @override
+  void dispose() {
+    _newAddressController.dispose();
+    super.dispose();
+  }
+
+  void _showSnack(String message, {bool isSuccess = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isSuccess ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists && mounted) {
+        setState(() {
+          _userData = doc.data();
+          _userAddresses = _userData?['addresses'] ?? [];
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnack("เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้");
+    }
+  }
+  
+  Future<void> _selectAddressFromMap() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MapPickerScreen()),
+    );
+
+    if (result != null && result is Map) {
+      final latlong.LatLng? pickedLocation = result['location'];
+      final String? pickedAddress = result['address'];
+
+      if (pickedLocation != null && pickedAddress != null) {
+        _newAddressController.text = pickedAddress;
+        _saveNewAddress(pickedAddress, pickedLocation);
+      }
+    }
+  }
+
+  Future<void> _saveNewAddress(String addressText, latlong.LatLng location) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (addressText.isEmpty) {
+      _showSnack("กรุณาเลือกที่อยู่");
+      return;
+    }
+
+    final newAddress = {
+      'address_text': addressText,
+      'gps': {'lat': location.latitude, 'lng': location.longitude},
+    };
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'addresses': FieldValue.arrayUnion([newAddress])
+      });
+      _showSnack("บันทึกที่อยู่ใหม่สำเร็จ!", isSuccess: true);
+      
+      setState(() {
+        _isAddingAddress = false;
+        _newAddressController.clear();
+      });
+      _fetchUserData();
+
+    } catch (e) {
+      _showSnack("เกิดข้อผิดพลาดในการบันทึกที่อยู่");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: _buildCustomAppBar(context), // Using the custom AppBar
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-          child: Column(
-            children: [
-              // 1. Profile Picture
-              _buildProfilePicture(),
-              const SizedBox(height: 24.0),
+      appBar: _buildCustomAppBar(context),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _userData == null
+              ? const Center(child: Text("ไม่พบข้อมูลผู้ใช้"))
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+                    child: Column(
+                      children: [
+                        _buildProfilePicture(_userData?['profile_image']),
+                        const SizedBox(height: 24.0),
 
-              // 2. Info Fields
-              _buildInfoField(icon: Icons.person_outline, text: "fiwfy"),
-              const SizedBox(height: 12.0),
-              _buildInfoField(
-                icon: Icons.person_outline,
-                text: "fiwfy@gmail.com",
-              ),
-              const SizedBox(height: 12.0),
-              _buildInfoField(icon: Icons.phone_outlined, text: "0888888888"),
-              const SizedBox(height: 12.0),
-              _buildInfoField(
-                icon: Icons.lock_outline,
-                text: "********",
-                trailingIcon: Icons.visibility_outlined,
-              ),
-              const SizedBox(height: 12.0),
-              _buildInfoField(
-                icon: Icons.location_on_outlined,
-                text: "หมู่บ้านอัครฉัตรธานี",
-              ),
-              const SizedBox(height: 12.0),
-              _buildInfoField(
-                icon: Icons.location_on_outlined,
-                text: "ที่อยู่ใหม่",
-              ),
-              const SizedBox(height: 24.0),
+                        _buildInfoField(icon: Icons.person_outline, text: _userData?['name'] ?? 'ไม่มีชื่อ'),
+                        const SizedBox(height: 12.0),
+                        _buildInfoField(icon: Icons.mail_outline, text: _userData?['user_email'] ?? 'ไม่มีอีเมล'),
+                        const SizedBox(height: 12.0),
+                        _buildInfoField(icon: Icons.phone_outlined, text: _userData?['phone_number'] ?? 'ไม่มีเบอร์โทร'),
+                        const SizedBox(height: 12.0),
+                        _buildInfoField(
+                          icon: Icons.lock_outline,
+                          text: "********",
+                          trailingIcon: Icons.visibility_outlined,
+                        ),
+                        const SizedBox(height: 12.0),
 
-              // 3. Plus icon at the bottom
-              const Icon(Icons.add, color: Colors.black, size: 30),
-            ],
-          ),
-        ),
-      ),
+                        ..._userAddresses.map((address) {
+                           final addressText = (address as Map)['address_text'] ?? 'ที่อยู่ไม่ถูกต้อง';
+                           return Padding(
+                             padding: const EdgeInsets.only(bottom: 12.0),
+                             child: _buildInfoField(
+                               icon: Icons.location_on_outlined,
+                               text: addressText,
+                             ),
+                           );
+                        }).toList(),
+
+                        if (_isAddingAddress)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: _buildInfoField(
+                              icon: Icons.location_on_outlined,
+                              text: "คลิกเพื่อเลือกที่อยู่ใหม่",
+                              isTappable: true,
+                              controller: _newAddressController,
+                              onTap: _selectAddressFromMap,
+                            ),
+                          ),
+                        
+                        const SizedBox(height: 24.0),
+
+                        // ปุ่มบวกจะแสดงตลอดเวลา
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              // เมื่อกดบวก ให้แสดงช่องกรอกเสมอ
+                              _isAddingAddress = true;
+                            });
+                          },
+                          child: const Icon(
+                            Icons.add, 
+                            color: Colors.black, 
+                            size: 30
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
     );
   }
 
-  /// Widget for building the curved AppBar (Corrected)
   PreferredSize _buildCustomAppBar(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
     const double appBarHeight = 100;
@@ -78,17 +209,9 @@ class UserProfileScreen extends StatelessWidget {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.black,
-                    size: 28,
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.black, size: 28),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
-                // vvvv This was the error location vvvv
-                // The extra closing parenthesis was here
                 const SizedBox(width: 10),
                 const Text(
                   'ข้อมูลส่วนตัว',
@@ -98,7 +221,6 @@ class UserProfileScreen extends StatelessWidget {
                     color: Colors.black,
                   ),
                 ),
-                // ^^^^ Corrected structure ^^^^
               ],
             ),
           ),
@@ -107,23 +229,24 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building the profile picture
-  Widget _buildProfilePicture() {
+  Widget _buildProfilePicture(String? imageUrl) {
     return Center(
       child: SizedBox(
         width: 120,
         height: 120,
         child: Stack(
-          clipBehavior: Clip.none, // Allow icon to overflow
+          clipBehavior: Clip.none,
           children: [
-            // Profile image
-            const CircleAvatar(
+            CircleAvatar(
               radius: 60,
-              backgroundImage: NetworkImage(
-                "https://i.imgur.com/v8SjA9H.png",
-              ), // (Using Shiba as placeholder)
+              backgroundColor: Colors.grey.shade300,
+              backgroundImage: (imageUrl != null && imageUrl.isNotEmpty) 
+                  ? NetworkImage(imageUrl) 
+                  : null,
+              child: (imageUrl == null || imageUrl.isEmpty) 
+                  ? const Icon(Icons.person, size: 60, color: Colors.white) 
+                  : null,
             ),
-            // Green plus icon
             Positioned(
               bottom: 0,
               right: 0,
@@ -143,42 +266,49 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building an info field row
+  // ***** แก้ไข Widget นี้ *****
   Widget _buildInfoField({
     required IconData icon,
     required String text,
     IconData? trailingIcon,
+    bool isTappable = false, // เปลี่ยนชื่อ parameter ให้ชัดเจน
+    VoidCallback? onTap,
+    TextEditingController? controller,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-      decoration: BoxDecoration(
-        color: fieldBgColor,
-        borderRadius: BorderRadius.circular(15.0),
-        border: Border.all(color: Colors.grey.shade300, width: 1.0),
+    // ลบ InkWell และ IgnorePointer ออก
+    return TextFormField(
+      controller: controller,
+      readOnly: true, // ทำให้กดแล้วไม่ขึ้นคีย์บอร์ด แต่ยังรับ onTap ได้
+      onTap: isTappable ? onTap : null, // กำหนด onTap ที่นี่โดยตรง
+      decoration: InputDecoration(
+        hintText: text,
+        prefixIcon: Icon(icon, color: Colors.grey[700]),
+        suffixIcon: trailingIcon != null ? Icon(trailingIcon, color: Colors.grey[700]) : null,
+        filled: true,
+        fillColor: fieldBgColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15.0),
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15.0),
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
+        ),
+          focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15.0),
+          borderSide: BorderSide(color: primaryYellow, width: 2.0),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.grey[700]),
-          const SizedBox(width: 16.0),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey[800],
-                // (Use a font that shows thick dots for passwords)
-                fontFamily: (text == "********") ? 'Roboto' : null,
-              ),
-            ),
-          ),
-          if (trailingIcon != null) Icon(trailingIcon, color: Colors.grey[700]),
-        ],
+      style: TextStyle(
+        fontSize: 15,
+        color: Colors.grey[800],
+        fontFamily: (text == "********") ? 'Roboto' : null,
       ),
     );
   }
 }
 
-/// Class for clipping the AppBar (must be in this file)
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});

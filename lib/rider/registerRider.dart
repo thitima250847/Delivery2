@@ -39,7 +39,6 @@ class _RegisterRiderState extends State<RegisterRider> {
   // image state
   final _picker = ImagePicker();
   Uint8List? _imageBytes;
-  String? _imageExtension;
 
   bool _submitting = false;
 
@@ -93,7 +92,6 @@ class _RegisterRiderState extends State<RegisterRider> {
 
       setState(() {
         _imageBytes = bytes;
-        _imageExtension = fileExtension;
       });
     } catch (e) {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');

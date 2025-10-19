@@ -4,7 +4,6 @@ import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
@@ -37,7 +36,6 @@ class _SendItemPageState extends State<SendItemPage> {
   String _recipientPhone = 'ไม่ระบุ';
   String _recipientAddress = 'ไม่ระบุ';
   String? _recipientImageUrl;
-  Map<String, dynamic>? _recipientGps;
   Map<String, dynamic>? _senderData;
 
   @override
@@ -66,7 +64,6 @@ class _SendItemPageState extends State<SendItemPage> {
 
       final addresses = widget.recipientData['addresses'] as List<dynamic>?;
       if (addresses != null && addresses.isNotEmpty) {
-        _recipientGps = (addresses.first as Map<String, dynamic>)['gps'];
       }
     } catch (e) {
       if (mounted) _showSnack("เกิดข้อผิดพลาดในการโหลดข้อมูล: $e");
@@ -178,7 +175,15 @@ class _SendItemPageState extends State<SendItemPage> {
         // --- ข้อมูลผู้ส่ง (Snapshot ณ เวลาที่ส่ง) ---
         'sender_info': {
           'name': _senderData?['name'] ?? 'ไม่ระบุ',
-          'phone': _senderData?['phone_number'] ?? 'ไม่ระบุ', // <-- เพิ่มบรรทัดนี้
+          'phone': _senderData?['phone_number'] ?? 'ไม่ระบุ',
+          // --- เพิ่มที่อยู่ของผู้ส่ง ---
+          'address':
+              ((_senderData?['addresses'] as List<dynamic>?)?.isNotEmpty ??
+                  false)
+              ? (_senderData!['addresses'][0]
+                        as Map<String, dynamic>)['address_text'] ??
+                    'ไม่ระบุ'
+              : 'ไม่ระบุ',
         },
       };
 

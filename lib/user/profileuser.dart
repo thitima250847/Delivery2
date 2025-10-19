@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:delivery/map/map_register.dart';
+import 'package:delivery/map/map_register.dart'; // Import the map picker screen
 import 'package:latlong2/latlong.dart' as latlong;
 
 class UserProfileScreen extends StatefulWidget {
@@ -47,9 +47,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  // --- 1. Fetch user data from Firestore ---
   Future<void> _fetchUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      // Handle not logged in case
       setState(() => _isLoading = false);
       return;
     }
@@ -71,23 +73,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
   
+  // --- 2. Navigate to map and handle result ---
   Future<void> _selectAddressFromMap() async {
+    // Navigate to the map picker screen
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const MapPickerScreen()),
     );
 
+    // Handle the result from the map picker
     if (result != null && result is Map) {
       final latlong.LatLng? pickedLocation = result['location'];
       final String? pickedAddress = result['address'];
 
       if (pickedLocation != null && pickedAddress != null) {
         _newAddressController.text = pickedAddress;
+        // Automatically save the new address
         _saveNewAddress(pickedAddress, pickedLocation);
       }
     }
   }
 
+  // --- 3. Save the new address to Firestore ---
   Future<void> _saveNewAddress(String addressText, latlong.LatLng location) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -107,11 +114,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       });
       _showSnack("บันทึกที่อยู่ใหม่สำเร็จ!", isSuccess: true);
       
+      // Hide the input field and refresh data
       setState(() {
         _isAddingAddress = false;
         _newAddressController.clear();
       });
-      _fetchUserData();
+      _fetchUserData(); // Refresh user data to show the new address
 
     } catch (e) {
       _showSnack("เกิดข้อผิดพลาดในการบันทึกที่อยู่");
@@ -135,6 +143,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         _buildProfilePicture(_userData?['profile_image']),
                         const SizedBox(height: 24.0),
 
+                        // --- 4. Display real data ---
                         _buildInfoField(icon: Icons.person_outline, text: _userData?['name'] ?? 'ไม่มีชื่อ'),
                         const SizedBox(height: 12.0),
                         _buildInfoField(icon: Icons.mail_outline, text: _userData?['user_email'] ?? 'ไม่มีอีเมล'),
@@ -148,6 +157,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ),
                         const SizedBox(height: 12.0),
 
+                        // --- 5. Display list of addresses ---
                         ..._userAddresses.map((address) {
                            final addressText = (address as Map)['address_text'] ?? 'ที่อยู่ไม่ถูกต้อง';
                            return Padding(
@@ -159,30 +169,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                            );
                         }).toList(),
 
+                        // --- 6. Show/Hide new address field ---
                         if (_isAddingAddress)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12.0),
                             child: _buildInfoField(
                               icon: Icons.location_on_outlined,
                               text: "คลิกเพื่อเลือกที่อยู่ใหม่",
-                              isTappable: true,
+                              isButton: true,
                               controller: _newAddressController,
-                              onTap: _selectAddressFromMap,
+                              onTap: _selectAddressFromMap, // Assign the function here
                             ),
                           ),
                         
                         const SizedBox(height: 24.0),
 
-                        // ปุ่มบวกจะแสดงตลอดเวลา
+                        // --- 7. Plus button to toggle address field ---
                         GestureDetector(
                           onTap: () {
                             setState(() {
-                              // เมื่อกดบวก ให้แสดงช่องกรอกเสมอ
-                              _isAddingAddress = true;
+                              _isAddingAddress = !_isAddingAddress;
                             });
                           },
-                          child: const Icon(
-                            Icons.add, 
+                          child: Icon(
+                            _isAddingAddress ? Icons.remove : Icons.add, 
                             color: Colors.black, 
                             size: 30
                           ),
@@ -195,6 +205,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   PreferredSize _buildCustomAppBar(BuildContext context) {
+    // ... (This widget is correct, no changes needed)
     final double statusBarHeight = MediaQuery.of(context).padding.top;
     const double appBarHeight = 100;
 
@@ -266,50 +277,54 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  // ***** แก้ไข Widget นี้ *****
   Widget _buildInfoField({
     required IconData icon,
     required String text,
     IconData? trailingIcon,
-    bool isTappable = false, // เปลี่ยนชื่อ parameter ให้ชัดเจน
+    bool isButton = false,
     VoidCallback? onTap,
     TextEditingController? controller,
   }) {
-    // ลบ InkWell และ IgnorePointer ออก
-    return TextFormField(
-      controller: controller,
-      readOnly: true, // ทำให้กดแล้วไม่ขึ้นคีย์บอร์ด แต่ยังรับ onTap ได้
-      onTap: isTappable ? onTap : null, // กำหนด onTap ที่นี่โดยตรง
-      decoration: InputDecoration(
-        hintText: text,
-        prefixIcon: Icon(icon, color: Colors.grey[700]),
-        suffixIcon: trailingIcon != null ? Icon(trailingIcon, color: Colors.grey[700]) : null,
-        filled: true,
-        fillColor: fieldBgColor,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15.0),
-          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
+    return InkWell(
+      onTap: isButton ? onTap : null,
+      child: IgnorePointer(
+        ignoring: !isButton,
+        child: TextFormField(
+          controller: controller,
+          readOnly: true,
+          decoration: InputDecoration(
+            hintText: text,
+            prefixIcon: Icon(icon, color: Colors.grey[700]),
+            suffixIcon: trailingIcon != null ? Icon(trailingIcon, color: Colors.grey[700]) : null,
+            filled: true,
+            fillColor: fieldBgColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15.0),
+              borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15.0),
+              borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
+            ),
+             focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15.0),
+              borderSide: BorderSide(color: primaryYellow, width: 2.0),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+          ),
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey[800],
+            fontFamily: (text == "********") ? 'Roboto' : null,
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15.0),
-          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
-        ),
-          focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15.0),
-          borderSide: BorderSide(color: primaryYellow, width: 2.0),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-      ),
-      style: TextStyle(
-        fontSize: 15,
-        color: Colors.grey[800],
-        fontFamily: (text == "********") ? 'Roboto' : null,
       ),
     );
   }
 }
 
 class CustomAppBarClipper extends CustomClipper<Path> {
+  // ... (This class is correct, no changes needed)
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});
 

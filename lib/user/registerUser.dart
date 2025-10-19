@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:delivery/map/map_register.dart';
 import 'package:delivery/rider/registerRider.dart';
@@ -7,7 +6,6 @@ import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
@@ -38,8 +36,7 @@ class _RegisterUserState extends State<RegisterUser> {
   // image state
   final _picker = ImagePicker();
   Uint8List? _imageBytes; // สำหรับแสดงผล preview
-  String? _imageExtension;
-  File? _imageFile; // แก้ไข: เพิ่มตัวแปรสำหรับเก็บ File
+// แก้ไข: เพิ่มตัวแปรสำหรับเก็บ File
 
   bool _submitting = false;
 
@@ -87,13 +84,11 @@ class _RegisterUserState extends State<RegisterUser> {
       }
 
       // แก้ไข: เก็บ File ไว้เพื่ออัปโหลด
-      _imageFile = File(xFile.path);
 
       final bytes = await xFile.readAsBytes();
       if (!mounted) return;
       setState(() {
         _imageBytes = bytes;
-        _imageExtension = fileExtension;
       });
     } catch (e) {
       _showSnack('เลือกรูปไม่สำเร็จ: $e');

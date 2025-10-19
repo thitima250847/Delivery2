@@ -1,7 +1,6 @@
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart' hide CustomAppBarClipper;
-import 'package:delivery/user/tracking.dart' hide CustomAppBarClipper;
 import 'package:flutter/material.dart';
 
 class DetailPage extends StatelessWidget {

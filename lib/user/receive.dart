@@ -1,13 +1,12 @@
 import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/history.dart';
-import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/search.dart';
 import 'package:delivery/user/status.dart'; // <-- Make sure StatusScreen is imported
 import 'package:flutter/material.dart';
 
 // ***** 1. เพิ่ม Imports สำหรับหน้าที่จะไป *****
-import 'package:delivery/user/receive.dart'; // สำหรับปุ่ม 'ส่งสินค้า'
+// สำหรับปุ่ม 'ส่งสินค้า'
 import 'package:delivery/user/tracking.dart'; // สำหรับปุ่ม 'สินค้าที่ต้องรับ'
 
 void main() {

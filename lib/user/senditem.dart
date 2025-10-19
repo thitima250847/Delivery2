@@ -2,10 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+// ไม่จำเป็นต้องใช้ cloud_functions แล้ว
+// import 'package:cloud_functions/cloud_functions.dart';
 import 'package:http/http.dart' as http;
 
 class CloudinaryConfig {
@@ -61,10 +64,6 @@ class _SendItemPageState extends State<SendItemPage> {
       _recipientPhone = widget.recipientData['phone'] ?? 'ไม่ระบุ';
       _recipientAddress = widget.recipientData['address'] ?? 'ไม่ระบุ';
       _recipientImageUrl = widget.recipientData['imageUrl'];
-
-      final addresses = widget.recipientData['addresses'] as List<dynamic>?;
-      if (addresses != null && addresses.isNotEmpty) {
-      }
     } catch (e) {
       if (mounted) _showSnack("เกิดข้อผิดพลาดในการโหลดข้อมูล: $e");
     } finally {
@@ -124,10 +123,9 @@ class _SendItemPageState extends State<SendItemPage> {
     }
   }
 
-  // senditem.dart
-
-  // ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
-
+  // =================================================================
+  // === ฟังก์ชัน `_saveAllData` (แก้ไขกลับเป็นวิธีที่ 1: เขียนตรง) ===
+  // =================================================================
   Future<void> _saveAllData() async {
     final description = _descriptionController.text.trim();
     if (_itemImageBytes == null || description.isEmpty) {
@@ -141,72 +139,58 @@ class _SendItemPageState extends State<SendItemPage> {
     setState(() => _isSaving = true);
 
     try {
-      // 1. อัปโหลดรูปสินค้าไป Cloudinary (เหมือนเดิม)
-      final String? itemImageUrl = await _uploadItemImageToCloudinary(
-        _itemImageBytes!,
-      );
+      // 1. อัปโหลดรูปสินค้าไป Cloudinary
+      final String? itemImageUrl =
+          await _uploadItemImageToCloudinary(_itemImageBytes!);
       if (itemImageUrl == null) {
-        // หากอัปโหลดไม่สำเร็จ ให้หยุดการทำงาน
-        setState(() => _isSaving = false);
-        return;
+        throw Exception("ไม่สามารถอัปโหลดรูปภาพได้");
       }
 
-      // 2. ดึง user_id ของผู้ส่ง (ผู้ใช้ปัจจุบัน)
-      final senderId = FirebaseAuth.instance.currentUser?.uid;
-      if (senderId == null) {
-        throw Exception("ไม่สามารถระบุตัวตนผู้ส่งได้");
-      }
+      // 2. เตรียมข้อมูลที่อยู่ผู้ส่ง
+      final senderAddress = ((_senderData?['addresses'] as List<dynamic>?)?.isNotEmpty ?? false)
+          ? (_senderData!['addresses'][0] as Map<String, dynamic>)['address_text'] ?? 'ไม่ระบุ'
+          : 'ไม่ระบุ';
 
-      // 3. (ส่วนที่แก้ไข) สร้างข้อมูลที่จะบันทึกลง Firestore โดยตรง
+      // 3. เตรียมข้อมูลทั้งหมดที่จะบันทึกลง Firestore
       final packageData = <String, dynamic>{
-        // --- ข้อมูลหลัก ---
-        'sender_user_id': senderId, // user_id ของผู้ส่ง
-        'receiver_user_id': _recipientId, // user_id ของผู้รับ
-        'package_description': description, // ข้อความที่ส่งถึง
-        'proof_image_url': itemImageUrl, // รูปสินค้าจาก Cloudinary
-        'created_at': Timestamp.now(), // วันที่และเวลาที่สร้างรายการ
-        'status': 'pending', // สถานะเริ่มต้น (แนะนำให้มี)
-        // --- ข้อมูลผู้รับ (Snapshot ณ เวลาที่ส่ง) ---
+        'status': 'pending',
+        'proof_image_url': itemImageUrl,
+        'package_description': description,
+        'created_at': Timestamp.now(),
+        'sender_user_id': FirebaseAuth.instance.currentUser?.uid,
+        'receiver_user_id': _recipientId,
+        'rider_id': null,
+        'sender_info': {
+          'name': _senderData?['name'] ?? 'ไม่ระบุ',
+          'phone': _senderData?['phone_number'] ?? 'ไม่ระบุ',
+          'address': senderAddress,
+        },
         'receiver_info': {
           'name': _recipientName,
           'phone': _recipientPhone,
           'address': _recipientAddress,
         },
-        // --- ข้อมูลผู้ส่ง (Snapshot ณ เวลาที่ส่ง) ---
-        'sender_info': {
-          'name': _senderData?['name'] ?? 'ไม่ระบุ',
-          'phone': _senderData?['phone_number'] ?? 'ไม่ระบุ',
-          // --- เพิ่มที่อยู่ของผู้ส่ง ---
-          'address':
-              ((_senderData?['addresses'] as List<dynamic>?)?.isNotEmpty ??
-                  false)
-              ? (_senderData!['addresses'][0]
-                        as Map<String, dynamic>)['address_text'] ??
-                    'ไม่ระบุ'
-              : 'ไม่ระบุ',
-        },
       };
 
-      // 4. (ส่วนที่แก้ไข) บันทึกข้อมูลลงใน collection 'packages'
+      // 4. บันทึกข้อมูลลง Firestore ใน Collection 'packages' โดยตรง
       await FirebaseFirestore.instance.collection('packages').add(packageData);
 
+      // 5. เมื่อสำเร็จ ให้แสดงข้อความและไปหน้าถัดไป
       _showSnack('สร้างรายการส่งสินค้าสำเร็จ!', isSuccess: true);
       if (!mounted) return;
-      // ไปยังหน้าประวัติการส่ง
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HistoryPage()),
         (route) => false,
       );
+
     } catch (e) {
-      // ปรับปรุงการแสดงข้อผิดพลาดให้ครอบคลุมมากขึ้น
       _showSnack('เกิดข้อผิดพลาดในการบันทึกข้อมูล: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  // ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
 
   @override
   Widget build(BuildContext context) {

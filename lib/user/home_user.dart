@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// หน้านำทาง (ที่ไม่เปลี่ยน)
+// หน้านำทาง (เดิม)
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/status.dart';
 import 'package:delivery/user/tracking.dart';
 
-// ***** 1. แปลงเป็น StatefulWidget *****
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
 
@@ -18,12 +17,10 @@ class DeliveryPage extends StatefulWidget {
 }
 
 class _DeliveryPageState extends State<DeliveryPage> {
-  // ***** 2. สร้างตัวแปรเพื่อเก็บข้อมูลผู้ใช้และสถานะการโหลด *****
   String? _userName;
   String? _userAddress;
   bool _isLoading = true;
 
-  // ***** 3. สร้างฟังก์ชันดึงข้อมูลเมื่อหน้าจอถูกสร้าง *****
   @override
   void initState() {
     super.initState();
@@ -32,62 +29,110 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
   Future<void> _fetchUserData() async {
     try {
-      // ดึงข้อมูลผู้ใช้ที่ล็อกอินปัจจุบัน
-      User? currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      if (currentUser != null) {
-        String uid = currentUser.uid;
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
 
-        // ดึงเอกสารของผู้ใช้จาก Firestore
-        DocumentSnapshot userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .get();
-
-        if (userDoc.exists) {
-          // แปลงข้อมูลเป็น Map
-          Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
-
-          // ดึงชื่อ
-          final name = data['name'] as String?;
-
-          // ดึงที่อยู่ (จากใน array 'addresses')
-          final addresses = data['addresses'] as List<dynamic>?;
-          String? addressText;
-          if (addresses != null && addresses.isNotEmpty) {
-            final firstAddress = addresses[0] as Map<String, dynamic>;
-            addressText = firstAddress['address_text'] as String?;
-          }
-
-          // อัปเดต State เพื่อให้ UI แสดงผลใหม่
-          setState(() {
-            _userName = name;
-            _userAddress = addressText;
-            _isLoading = false; // โหลดเสร็จแล้ว
-          });
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        final name = data['name'] as String?;
+        final addresses = data['addresses'] as List<dynamic>?;
+        String? addressText;
+        if (addresses != null && addresses.isNotEmpty) {
+          final firstAddress = addresses[0] as Map<String, dynamic>;
+          addressText = firstAddress['address_text'] as String?;
         }
-      } else {
+
         setState(() {
+          _userName = name;
+          _userAddress = addressText;
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
-      print("Error fetching user data: $e");
-      setState(() {
-        _isLoading = false; // หากเกิดข้อผิดพลาดให้หยุดโหลด
-      });
+      // log ถ้าต้องการ
+      setState(() => _isLoading = false);
     }
   }
+
+  // ---------- Helpers: หา packageId แล้วค่อยนำทาง ----------
+  Future<String?> _findActivePackageId({
+    required String customerField, // เช่น 'customer_id'
+    required List<String> statuses, // สถานะที่อยากหา
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+
+    try {
+      final q = await FirebaseFirestore.instance
+          .collection('packages')
+          .where(customerField, isEqualTo: user.uid)
+          .where('status', whereIn: statuses)
+          .limit(1) // ไม่ orderBy เพื่อลด requirement เรื่อง index
+          .get();
+
+      if (q.docs.isEmpty) return null;
+      return q.docs.first.id;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _openStatusForActivePackage(BuildContext context) async {
+    final pkgId = await _findActivePackageId(
+      customerField: 'customer_id',          // <-- เปลี่ยนให้ตรง schema ถ้าใช้ชื่ออื่น
+      statuses: const ['accepted', 'on_delivery'],
+    );
+    if (pkgId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบงานที่กำลังส่ง')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => StatusScreen(packageId: pkgId)),
+    );
+  }
+
+  Future<void> _openTrackingForActivePackage(BuildContext context) async {
+    final pkgId = await _findActivePackageId(
+      customerField: 'customer_id',          // <-- เปลี่ยนให้ตรง schema
+      statuses: const ['accepted', 'on_delivery'],
+    );
+    if (pkgId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบงานที่ต้องติดตาม')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TrackingScreen(packageId: pkgId)),
+    );
+  }
+  // ----------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // ***** 4. แสดงผลตามสถานะการโหลด *****
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator()) // ขณะโหลด
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              // เมื่อโหลดเสร็จแล้ว
               child: Column(
                 children: [
                   _buildTopSection(),
@@ -100,8 +145,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   ),
                   const SizedBox(height: 20),
                   _buildAdCard(
-                    imageUrl:
-                        'https://img.youtube.com/vi/Tb_H0-BavZY/sddefault.jpg',
+                    imageUrl: 'https://img.youtube.com/vi/Tb_H0-BavZY/sddefault.jpg',
                     title: 'กว่าจะเป็น ‘สันติ’',
                   ),
                 ],
@@ -130,13 +174,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // ***** 5. เปลี่ยนมาใช้ข้อมูลจาก State *****
                 Text(
-                  'สวัสดี ${_userName ?? 'ผู้ใช้งาน'}', // ใช้ชื่อที่ดึงมา
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'สวัสดี ${_userName ?? 'ผู้ใช้งาน'}',
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -144,11 +184,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     color: Colors.white.withOpacity(0.3),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.person,
-                    size: 28,
-                    color: Colors.white,
-                  ),
+                  child: const Icon(Icons.person, size: 28, color: Colors.white),
                 ),
               ],
             ),
@@ -163,10 +199,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 children: [
                   const Icon(Icons.location_on, color: Colors.white, size: 20),
                   const SizedBox(width: 10),
-                  // ***** 6. เปลี่ยนมาใช้ข้อมูลที่อยู่จาก State *****
                   Expanded(
                     child: Text(
-                      _userAddress ?? 'ไม่พบที่อยู่', // ใช้ที่อยู่ที่ดึงมา
+                      _userAddress ?? 'ไม่พบที่อยู่',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -183,7 +218,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ส่วนของปุ่ม 3 ปุ่ม (โค้ดเดิม)
+  // ส่วนของปุ่ม 3 ปุ่ม
   Widget _buildButtonSection(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -217,24 +252,18 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ฟังก์ชันสร้างปุ่มสำหรับ 'ส่งสินค้า' และ 'สินค้าที่กำลังส่ง' (โค้ดเดิม)
+  // ฟังก์ชันสร้างปุ่มสำหรับ 'ส่งสินค้า' และ 'สินค้าที่กำลังส่ง'
   Widget _buildActionButton(
     BuildContext context, {
     required String text,
     required IconData icon,
   }) {
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (text == 'ส่งสินค้า') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ReceivePage()),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivePage()));
         } else if (text == 'สินค้าที่กำลังส่ง') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const StatusScreen()),
-          );
+          await _openStatusForActivePackage(context); // ✅ ดึง packageId แล้วไปหน้า Status
         }
       },
       child: Container(
@@ -259,10 +288,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
             Flexible(
               child: Text(
                 text,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -272,16 +298,13 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ฟังก์ชันสร้างปุ่มสำหรับ 'สินค้าที่ต้องรับ' (โค้ดเดิม)
+  // ปุ่ม 'สินค้าที่ต้องรับ' → เปิดหน้า Tracking พร้อม packageId
   Widget _buildReceivedButton(BuildContext context) {
     return SizedBox(
       width: 200,
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TrackingScreen()),
-          );
+        onTap: () async {
+          await _openTrackingForActivePackage(context); // ✅ ดึง packageId แล้วไปหน้า Tracking
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
@@ -313,7 +336,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ส่วนของการ์ดรูปภาพ (โค้ดเดิม)
+  // การ์ดโฆษณา
   Widget _buildAdCard({
     required String imageUrl,
     required String title,
@@ -326,12 +349,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         child: Stack(
           alignment: Alignment.bottomLeft,
           children: [
-            Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: 200,
-            ),
+            Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: 200),
             if (description != null && description.isNotEmpty)
               Positioned(
                 bottom: 0,
@@ -343,19 +361,11 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text(title,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 5),
-                      Text(
-                        description,
-                        style: TextStyle(color: Colors.white.withOpacity(0.8)),
-                      ),
+                      Text(description, style: TextStyle(color: Colors.white.withOpacity(0.8))),
                     ],
                   ),
                 ),
@@ -366,7 +376,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ส่วนเมนูด้านล่าง (โค้ดเดิม)
+  // เมนูด้านล่าง
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -375,30 +385,20 @@ class _DeliveryPageState extends State<DeliveryPage> {
       onTap: (index) {
         switch (index) {
           case 0:
-            // ไม่ต้องทำอะไรเพราะอยู่หน้าแรกแล้ว
-            break;
+            break; // อยู่หน้าแรกแล้ว
           case 1:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
             break;
           case 2:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const MoreOptionsPage()));
             break;
         }
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'หน้าแรก'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.history),
-          label: 'ประวัติการส่งสินค้า',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.history), label: 'ประวัติการส่งสินค้า'),
         BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'อื่นๆ'),
       ],
     );
-  }
+    }
 }

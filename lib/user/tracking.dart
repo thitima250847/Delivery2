@@ -1,15 +1,79 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/history.dart';
-
 import 'package:delivery/user/more.dart';
 
-class TrackingScreen extends StatelessWidget {
-  const TrackingScreen({super.key});
+class TrackingScreen extends StatefulWidget {
+  final String packageId; // ✅ ต้องส่งเข้ามา
+  const TrackingScreen({super.key, required this.packageId});
 
+  @override
+  State<TrackingScreen> createState() => _TrackingScreenState();
+}
+
+class _TrackingScreenState extends State<TrackingScreen> {
   static const Color primaryYellow = Color(0xFFFDE428);
   static const Color lightGreyBg = Color(0xFFF5F5F5);
+
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
+
+  // ----- สถานะ/UI state -----
+  String _riderName = 'กำลังโหลด...';
+  String _riderPhone = 'กำลังโหลด...';
+  String _riderPlate = 'กำลังโหลด...';
+  int _currentStep = 0; // 0..3 = (pending, accepted, on_delivery, delivered)
+
+  @override
+  void initState() {
+    super.initState();
+    _listenPackage();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _listenPackage() {
+    _sub?.cancel();
+    _sub = FirebaseFirestore.instance
+        .collection('packages')
+        .doc(widget.packageId)
+        .snapshots()
+        .listen((snap) {
+      if (!snap.exists || snap.data() == null) return;
+      final data = snap.data()!;
+      final status = (data['status'] as String?)?.toLowerCase().trim() ?? 'pending';
+
+      // map สถานะ → step index 0..3
+      final step = switch (status) {
+        'pending' => 0,
+        'accepted' => 1,
+        'on_delivery' => 2,
+        'delivered' => 3,
+        _ => 0,
+      };
+
+      // ถ้ามีฟิลด์ชื่ออื่น ให้เปลี่ยนตรงนี้ให้ตรง schema ของคุณ
+      final riderName =
+          (data['rider_name'] as String?) ??
+          (data['rider_id'] != null ? 'Rider: ${data['rider_id']}' : 'ยังไม่มีไรเดอร์');
+      final riderPhone = (data['rider_phone'] as String?) ?? 'ไม่ระบุ';
+      final riderPlate = (data['rider_plate'] as String?) ?? 'ไม่ระบุ';
+
+      if (!mounted) return;
+      setState(() {
+        _currentStep = step;
+        _riderName = riderName;
+        _riderPhone = riderPhone;
+        _riderPlate = riderPlate;
+      });
+    }, onError: (_) {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,20 +87,13 @@ class TrackingScreen extends StatelessWidget {
             children: [
               _buildMap(),
               const SizedBox(height: 24),
+              // บล็อกสถานะตามเอกสาร Firestore ของ packageId ที่ส่งมา
               _buildRiderStatusBlock(
                 context: context,
-                riderName: 'Thitima',
-                riderPhone: '065576****',
-                riderPlate: 'ขก8',
-                currentStep: 3,
-              ),
-              const SizedBox(height: 16),
-              _buildRiderStatusBlock(
-                context: context,
-                riderName: 'Thitima',
-                riderPhone: '065576****',
-                riderPlate: 'ขก8',
-                currentStep: 1,
+                riderName: _riderName,
+                riderPhone: _riderPhone,
+                riderPlate: _riderPlate,
+                currentStep: _currentStep,
               ),
             ],
           ),
@@ -46,7 +103,7 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building the curved AppBar
+  /// Curved AppBar
   PreferredSize _buildCustomAppBar(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
     return PreferredSize(
@@ -60,14 +117,8 @@ class TrackingScreen extends StatelessWidget {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.black,
-                    size: 28,
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.black, size: 28),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
                 const SizedBox(width: 10),
                 const Text(
@@ -86,14 +137,14 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for displaying the map placeholder
+  /// Map placeholder (สามารถแทนด้วยแผนที่จริงภายหลัง)
   Widget _buildMap() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15.0),
         child: Image.network(
-          "https://i.imgur.com/3Z0NpyA.png", // Map placeholder image
+          "https://i.imgur.com/3Z0NpyA.png",
           height: 250,
           width: double.infinity,
           fit: BoxFit.cover,
@@ -102,7 +153,7 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building one block (rider info + stepper)
+  /// Rider info + stepper block
   Widget _buildRiderStatusBlock({
     required BuildContext context,
     required String riderName,
@@ -130,7 +181,7 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building the rider info card
+  /// Rider info card
   Widget _buildRiderInfoCard({
     required BuildContext context,
     required String name,
@@ -162,7 +213,6 @@ class TrackingScreen extends StatelessWidget {
             child: CircleAvatar(
               radius: 25,
               backgroundColor: Colors.grey[200],
-              // backgroundImage: NetworkImage("URL_รูปภาพ"),
             ),
           ),
           const SizedBox(width: 16),
@@ -170,33 +220,26 @@ class TrackingScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'ชื่อ : $name',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'หมายเลขโทรศัพท์ : $phone',
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'หมายเลขทะเบียนรถ : $licensePlate',
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                Text('ชื่อ : $name',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                Text('หมายเลขโทรศัพท์ : $phone',
+                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                Text('หมายเลขทะเบียนรถ : $licensePlate',
+                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
+
+              Navigator.push(context, MaterialPageRoute(builder: (_) => DetailPage()));
               // vvvv 2. [สำคัญ] ลองลบ const ถ้า DetailPage ไม่มี const constructor vvvv
               Navigator.push(
                 context,
@@ -208,9 +251,7 @@ class TrackingScreen extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryYellow,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -218,14 +259,8 @@ class TrackingScreen extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'รายละเอียด',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text('รายละเอียด',
+                    style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
                 Icon(Icons.chevron_right, color: Colors.black, size: 14),
               ],
             ),
@@ -235,7 +270,7 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building the yellow status stepper bar
+  /// Yellow stepper bar
   Widget _buildStatusStepper({required int currentStep}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
@@ -290,7 +325,6 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building one item in the stepper
   Widget _buildStepItem({
     required String title,
     required IconData iconData,
@@ -315,21 +349,14 @@ class TrackingScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: backgroundColor,
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: backgroundColor),
             child: Icon(iconData, size: 28, color: iconColor),
           ),
           const SizedBox(height: 6),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 9,
-              color: textColor,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 9, color: textColor, fontWeight: FontWeight.bold),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -338,7 +365,7 @@ class TrackingScreen extends StatelessWidget {
     );
   }
 
-  /// Widget for building the Bottom Navigation Bar
+  /// Bottom Navigation Bar
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -352,41 +379,25 @@ class TrackingScreen extends StatelessWidget {
       onTap: (index) {
         switch (index) {
           case 0:
-            // Current page
-            break;
+            break; // หน้าปัจจุบัน
           case 1:
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => HistoryPage()),
-            ); // <-- ลองลบ const
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HistoryPage()));
             break;
           case 2:
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => MoreOptionsPage()),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MoreOptionsPage()));
             break;
         }
       },
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_filled),
-          label: "หน้าแรก",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.history_rounded),
-          label: "ประวัติการส่งสินค้า",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.more_horiz_rounded),
-          label: "อื่นๆ",
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "หน้าแรก"),
+        BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: "ประวัติการส่งสินค้า"),
+        BottomNavigationBarItem(icon: Icon(Icons.more_horiz_rounded), label: "อื่นๆ"),
       ],
     );
   }
 }
 
-/// Class for clipping the AppBar
+/// Clipper for AppBar
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});
@@ -397,12 +408,7 @@ class CustomAppBarClipper extends CustomClipper<Path> {
     path.lineTo(0, size.height - borderRadius);
     path.quadraticBezierTo(0, size.height, borderRadius, size.height);
     path.lineTo(size.width - borderRadius, size.height);
-    path.quadraticBezierTo(
-      size.width,
-      size.height,
-      size.width,
-      size.height - borderRadius,
-    );
+    path.quadraticBezierTo(size.width, size.height, size.width, size.height - borderRadius);
     path.lineTo(size.width, 0);
     path.close();
     return path;

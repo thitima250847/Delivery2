@@ -1,16 +1,20 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:delivery/rider/HomePageRider.dart'; // ใช้เพื่อย้อนกลับไปหน้า Home
+import 'dart:io'; // Import for File class
 import 'package:flutter/material.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlong;
-import 'package:flutter_map/flutter_map.dart'; 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:geocoding/geocoding.dart'; 
+
+import 'package:image_picker/image_picker.dart' as xpicker;
+import 'package:cloudinary_public/cloudinary_public.dart';
+
+import 'package:delivery/rider/HomePageRider.dart';
+
 
 class TrackingScreen extends StatefulWidget {
-  final String packageId; // เพิ่มตัวแปรสำหรับรับ ID งาน
+  final String packageId;
   const TrackingScreen({super.key, required this.packageId});
 
   @override
@@ -18,46 +22,48 @@ class TrackingScreen extends StatefulWidget {
 }
 
 class _TrackingScreenState extends State<TrackingScreen> {
+  // สีหลัก
   static const Color primaryGreen = Color(0xFF98C21D);
   static const Color darkGreenText = Color(0xFF98C21D);
   static const Color kYellow = Color(0xFFEDE500);
 
-  // ********** 1. ตัวแปรสำหรับ Map Controller และ GPS Tracking **********
-  final MapController _mapController = MapController(); 
+  final MapController _mapController = MapController();
   StreamSubscription<Position>? _positionStreamSubscription;
-  final ImagePicker _picker = ImagePicker();
 
-  // ข้อมูลสถานะจาก Firebase
+  // กล้อง
+  final xpicker.ImagePicker _picker = xpicker.ImagePicker();
+
+  // Cloudinary
+  final cloudinary = CloudinaryPublic('dwltvhlju', 'delivery', cache: false);
+
+  // สถานะ
   String _currentPackageStatus = 'accepted';
-  final int _selectedTabIndex = 0;
+  bool _isLoading = false;
 
-  // ********** 2. ตัวแปรสถานะสำหรับดึงข้อมูลงาน **********
-  String _currentRiderAddress = 'กำลังระบุตำแหน่ง...';
-  final latlong.LatLng _pickupLocation = const latlong.LatLng(14.0754, 100.6049); // Fallback
-  final latlong.LatLng _dropoffLocation = const latlong.LatLng(14.0850, 100.6120); // Fallback
-  latlong.LatLng _currentRiderLocation = const latlong.LatLng(14.0754, 100.6049); // ตำแหน่งเริ่มต้น
+  // ตำแหน่ง
+  latlong.LatLng _currentRiderLocation = const latlong.LatLng(0, 0);
+  latlong.LatLng _pickupLocation = const latlong.LatLng(0, 0);
+  latlong.LatLng _dropoffLocation = const latlong.LatLng(0, 0);
 
-  // ข้อมูลผู้ส่ง (จาก sender_info)
+  // ข้อมูล
   String _senderName = 'กำลังโหลด...';
   String _senderPhone = 'กำลังโหลด...';
-  String _pickupAddress = 'กำลังโหลดที่อยู่รับ...'; // ที่อยู่รับสินค้า
-  // ข้อมูลผู้รับ (จาก receiver_info)
+  String _pickupAddress = 'กำลังโหลด...';
   String _receiverName = 'กำลังโหลด...';
   String _receiverPhone = 'กำลังโหลด...';
-  String _dropoffAddress = 'กำลังโหลดที่อยู่ส่ง...'; // ที่อยู่ส่งสินค้า
-
-  // ข้อมูลสินค้า (จาก package_description, proof_image_url)
+  String _dropoffAddress = 'กำลังโหลด...';
   String _productDescription = 'กำลังโหลด...';
-  String _productImageUrl = "https://via.placeholder.com/80?text=Product";
+  String _productImageUrl = "https://i.imgur.com/kS9YnSg.png";
 
-  // รูปถ่ายยืนยัน
+  // หลักฐานรูป
   String? _proofPhoto1Url;
   String? _proofPhoto2Url;
+  xpicker.XFile? _localProofPhoto1; // <-- ตัวแปรใหม่สำหรับเก็บรูปที่ถ่ายชั่วคราว
 
   @override
   void initState() {
     super.initState();
-    _fetchPackageStatus();
+    _fetchPackageDetails();
     _startListeningToLocation();
   }
 
@@ -67,285 +73,281 @@ class _TrackingScreenState extends State<TrackingScreen> {
     super.dispose();
   }
   
+  // ----- LOCATION (เหมือนเดิม) -----
   Future<void> _updateRiderLocationInFirestore(latlong.LatLng location) async {
-    final riderId = FirebaseAuth.instance.currentUser?.uid;
-    if (riderId == null) return;
-
     try {
-      await FirebaseFirestore.instance.collection('packages').doc(widget.packageId).update({
+      await FirebaseFirestore.instance
+          .collection('packages')
+          .doc(widget.packageId)
+          .update({
         'rider_lat': location.latitude,
         'rider_lng': location.longitude,
         'last_location_update': Timestamp.now(),
       });
     } catch (e) {
-      print("Error updating rider location: $e");
+      debugPrint("Error updating rider location: $e");
     }
   }
 
-  // *** NEW: ฟังก์ชัน Reverse Geocoding เพื่อหาที่อยู่จากพิกัด ***
-  Future<void> _reverseGeocodeRiderLocation(latlong.LatLng location) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        location.latitude,
-        location.longitude,
-        localeIdentifier: "th_TH", // กำหนดให้ผลลัพธ์เป็นภาษาไทย
-      );
-
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        // สร้างที่อยู่แบบย่อ
-        final address = [
-          p.street,
-          p.subLocality,
-          p.locality,
-          p.administrativeArea,
-        ].where((s) => s != null && s.isNotEmpty).join(', ');
-        
-        if (mounted) {
-          setState(() {
-            _currentRiderAddress = address.isEmpty ? "ไม่พบที่อยู่ (Lat: ${location.latitude.toStringAsFixed(4)})" : address;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _currentRiderAddress = 'ไม่สามารถระบุที่อยู่ได้';
-        });
-      }
-      print("Error during reverse geocoding: $e");
-    }
-  }
-
-  // *** ฟังก์ชัน: เริ่มติดตามตำแหน่ง GPS ของไรเดอร์ (Real-time) ***
   Future<void> _startListeningToLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location services are disabled.');
+    }
+
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง GPS')),
-          );
-        }
-        return; 
+        return Future.error('Location permissions are denied');
       }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error(
+          'Location permissions are permanently denied, we cannot request permissions.');
     }
 
     const LocationSettings locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
+      distanceFilter: 10,
     );
 
-    _positionStreamSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((Position position) {
-      if (mounted) {
-        final newLocation = latlong.LatLng(position.latitude, position.longitude);
-        
-        _updateRiderLocationInFirestore(newLocation);
-        
-        setState(() {
-          _currentRiderLocation = newLocation;
-          _mapController.move(_currentRiderLocation, _mapController.camera.zoom); 
-        });
-        _reverseGeocodeRiderLocation(newLocation);
-      }
+    _positionStreamSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings)
+            .listen((Position position) {
+      if (!mounted) return;
+      final newLocation =
+          latlong.LatLng(position.latitude, position.longitude);
+      _updateRiderLocationInFirestore(newLocation);
+      setState(() {
+        _currentRiderLocation = newLocation;
+        _mapController.move(
+            _currentRiderLocation, _mapController.camera.zoom);
+      });
     });
   }
 
-  // ********** 3. ดึงสถานะปัจจุบันและข้อมูลทั้งหมดของ Package **********
-  void _fetchPackageStatus() {
+  // ----- FIRESTORE (เหมือนเดิม) -----
+  void _fetchPackageDetails() {
     FirebaseFirestore.instance
         .collection('packages')
         .doc(widget.packageId)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data()!;
-        setState(() {
-          _currentPackageStatus = data['status'] ?? 'accepted';
-          _proofPhoto1Url = data['proof_image_url_1'];
-          _proofPhoto2Url = data['proof_image_url_2'];
+      if (!snapshot.exists || snapshot.data() == null) return;
+      final data = snapshot.data()!;
+      if (!mounted) return;
 
-          // ดึงข้อมูลตำแหน่งไรเดอร์ล่าสุด
-          final riderLat = data['rider_lat'] as double?;
-          final riderLng = data['rider_lng'] as double?;
-          if (riderLat != null && riderLng != null) {
-              _currentRiderLocation = latlong.LatLng(riderLat, riderLng);
-              // เมื่อดึงพิกัดมาแล้ว ให้แปลงเป็นที่อยู่ทันที (เผื่อกรณีเข้ามาหน้าจอใหม่)
-              _reverseGeocodeRiderLocation(_currentRiderLocation); 
-          }
-
-          // 1. ดึงข้อมูลผู้ส่ง/ผู้รับจาก Field Map
-          final senderInfo = data['sender_info'] as Map<String, dynamic>? ?? {};
-          final receiverInfo = data['receiver_info'] as Map<String, dynamic>? ?? {};
-
-          // อัปเดตข้อมูลผู้ส่ง (ที่อยู่รับสินค้า)
-          _senderName = senderInfo['name'] ?? 'ไม่ระบุ';
-          _senderPhone = senderInfo['phone'] ?? 'ไม่ระบุ';
-          _pickupAddress = senderInfo['address'] ?? 'ไม่ระบุสถานที่รับ';
-          
-          // อัปเดตข้อมูลผู้รับ (ที่อยู่ส่งสินค้า)
-          _receiverName = receiverInfo['name'] ?? 'ไม่ระบุ';
-          _receiverPhone = receiverInfo['phone'] ?? 'ไม่ระบุ';
-          _dropoffAddress = receiverInfo['address'] ?? 'ไม่ระบุสถานที่ส่ง';
-
-          // 2. ดึงข้อมูลสินค้า
-          _productDescription = data['package_description'] ?? 'ไม่มีรายละเอียด';
-          _productImageUrl = data['proof_image_url'] ?? "https://i.imgur.com/kS9YnSg.png";
-        });
-      }
-    });
-  }
-
-  // ฟังก์ชันจำลองการตรวจสอบระยะทาง
-  Future<bool> _isWithinDistance(latlong.LatLng target) async {
-    try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      
       setState(() {
-        _currentRiderLocation = latlong.LatLng(position.latitude, position.longitude);
+        _currentPackageStatus = data['status'] ?? 'accepted';
+        _proofPhoto1Url = data['proof_image_url_1'];
+        _proofPhoto2Url = data['proof_image_url_2'];
+
+        final senderInfo =
+            (data['sender_info'] as Map<String, dynamic>?) ?? {};
+        final receiverInfo =
+            (data['receiver_info'] as Map<String, dynamic>?) ?? {};
+
+        _senderName = senderInfo['name'] ?? 'ไม่ระบุ';
+        _senderPhone = senderInfo['phone'] ?? 'ไม่ระบุ';
+        _pickupAddress = senderInfo['address'] ?? 'ไม่ระบุ';
+
+        _receiverName = receiverInfo['name'] ?? 'ไม่ระบุ';
+        _receiverPhone = receiverInfo['phone'] ?? 'ไม่ระบุ';
+        _dropoffAddress = receiverInfo['address'] ?? 'ไม่ระบุ';
+
+        _productDescription = data['package_description'] ?? 'ไม่มีรายละเอียด';
+        _productImageUrl =
+            data['proof_image_url'] ?? "https://i.imgur.com/kS9YnSg.png";
+
+        _pickupLocation = latlong.LatLng(
+          (senderInfo['lat'] as num?)?.toDouble() ?? 0.0,
+          (senderInfo['lng'] as num?)?.toDouble() ?? 0.0,
+        );
+        _dropoffLocation = latlong.LatLng(
+          (receiverInfo['lat'] as num?)?.toDouble() ?? 0.0,
+          (receiverInfo['lng'] as num?)?.toDouble() ?? 0.0,
+        );
       });
-      _reverseGeocodeRiderLocation(_currentRiderLocation); // อัปเดตที่อยู่ปัจจุบัน
-      
-      double distanceInMeters = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        target.latitude,
-        target.longitude,
-      );
-
-      print("Current Distance to Target: $distanceInMeters meters");
-      return distanceInMeters <= 20.0;
-    } catch (e) {
-      print("Error checking distance: $e");
-      return false;
-    }
-  }
-
-  // ฟังก์ชันสำหรับกด "รับสินค้าแล้ว" หรือ "นำส่งสินค้าแล้ว"
-  Future<void> _updateStatus(String newStatus) async {
-    if (!mounted) return;
-
-    latlong.LatLng targetLocation;
-    String statusCheck;
-
-    if (_currentPackageStatus == 'accepted' && newStatus == 'on_delivery') {
-      targetLocation = _pickupLocation; // ตรวจสอบที่จุดรับ
-      statusCheck = 'รับสินค้า';
-    } else if (_currentPackageStatus == 'on_delivery' && newStatus == 'delivered') {
-      targetLocation = _dropoffLocation; // ตรวจสอบที่จุดส่ง
-      statusCheck = 'นำส่งสินค้า';
-
-      if (_proofPhoto1Url == null || _proofPhoto2Url == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณาถ่ายรูปยืนยันการจัดส่ง 2 รูปก่อน'), backgroundColor: Colors.orange),
-        );
-        return;
-      }
-    } else {
-      return;
-    }
-
-    final isNear = await _isWithinDistance(targetLocation);
-
-    if (!isNear) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('คุณอยู่ห่างจากจุด $statusCheck เกิน 20 เมตร'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    await FirebaseFirestore.instance
-        .collection('packages')
-        .doc(widget.packageId)
-        .update({'status': newStatus});
-
-    if (newStatus == 'delivered') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ส่งสินค้าสำเร็จ! คุณสามารถรับงานใหม่ได้แล้ว'), backgroundColor: Colors.green),
-      );
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePageRider()),
-        (route) => false,
-      );
-    }
-  }
-
-  Future<void> _mockTakeAndUploadPhoto(int index) async {
-    final XFile? xFile = await _picker.pickImage(source: ImageSource.camera, imageQuality: 75);
-
-    if (xFile == null) {
-        if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ยกเลิกการถ่ายภาพ'), backgroundColor: Colors.grey),
-            );
-        }
-        return;
-    }
-    
-    final mockUrl = "https://picsum.photos/seed/${DateTime.now().millisecondsSinceEpoch}/200/200"; 
-    
-    String field = index == 1 ? 'proof_image_url_1' : 'proof_image_url_2';
-    FirebaseFirestore.instance.collection('packages').doc(widget.packageId).update({
-      field: mockUrl,
     });
-    
+  }
+
+  // ----- PHOTO & STATUS UPDATE (ส่วนที่แก้ไข) -----
+
+  // 1. ฟังก์ชันสำหรับ "ถ่ายรูป" ณ จุดรับ (ยังไม่อัปโหลด)
+  Future<void> _takePhotoForPickup() async {
+    final xpicker.XFile? imageFile = await _picker.pickImage(
+      source: xpicker.ImageSource.camera,
+      imageQuality: 80,
+    );
+    if (imageFile == null) return;
     setState(() {
-      if (index == 1) {
-        _proofPhoto1Url = mockUrl;
-      } else {
-        _proofPhoto2Url = mockUrl;
-      }
+      _localProofPhoto1 = imageFile;
     });
+  }
 
-    if (mounted) {
+  // 2. ฟังก์ชันสำหรับ "ถ่ายและอัปโหลด" ณ จุดส่ง
+  Future<void> _takeAndUploadPhotoForDropoff() async {
+    final xpicker.XFile? imageFile = await _picker.pickImage(
+      source: xpicker.ImageSource.camera,
+      imageQuality: 80,
+    );
+    if (imageFile == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final res = await cloudinary.uploadFile(
+        CloudinaryFile.fromFile(imageFile.path),
+      );
+      final imageUrl = res.secureUrl;
+      await FirebaseFirestore.instance
+          .collection('packages')
+          .doc(widget.packageId)
+          .update({'proof_image_url_2': imageUrl});
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('ถ่ายรูปยืนยันรูปที่ $index สำเร็จ (Mock Upload)')),
+          const SnackBar(content: Text('อัปโหลดรูปที่ 2 สำเร็จ'), backgroundColor: Colors.green),
         );
+      }
+    } on CloudinaryException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('อัปโหลดรูปภาพล้มเหลว: ${e.message}'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+  
+  // 3. ฟังก์ชันอัปเดตสถานะ (ปรับปรุงใหม่ทั้งหมด)
+  Future<void> _updateStatus(String newStatus) async {
+    setState(() => _isLoading = true);
+    try {
+      if (newStatus == 'on_delivery') {
+        // --- ขั้นตอนการรับสินค้า ---
+        if (_localProofPhoto1 == null) {
+          throw Exception('กรุณาถ่ายรูปยืนยันการรับสินค้าก่อน');
+        }
+        // 1. อัปโหลดรูปที่ถ่ายไว้
+        final res = await cloudinary.uploadFile(
+          CloudinaryFile.fromFile(_localProofPhoto1!.path),
+        );
+        final imageUrl = res.secureUrl;
+
+        // 2. อัปเดตสถานะและ URL รูปภาพใน Firestore พร้อมกัน
+        await FirebaseFirestore.instance
+            .collection('packages')
+            .doc(widget.packageId)
+            .update({
+              'status': newStatus,
+              'proof_image_url_1': imageUrl,
+            });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('รับสินค้าเรียบร้อย เริ่มเดินทาง!'), backgroundColor: Colors.green),
+          );
+        }
+
+      } else if (newStatus == 'delivered') {
+        // --- ขั้นตอนการส่งสินค้า ---
+        if (_proofPhoto2Url == null) {
+          throw Exception('กรุณาถ่ายรูปยืนยันการส่งสินค้าก่อน');
+        }
+        await FirebaseFirestore.instance
+            .collection('packages')
+            .doc(widget.packageId)
+            .update({
+              'status': newStatus,
+              'delivered_at': Timestamp.now(),
+            });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ส่งสินค้าสำเร็จ!'), backgroundColor: Colors.green),
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomePageRider()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e.toString().contains("Exception:")
+          ? e.toString().replaceFirst("Exception: ", "")
+          : 'เกิดข้อผิดพลาด: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ---------------------------------------------------------------------
-  // WIDGET BUILDERS
-  // ---------------------------------------------------------------------
+  // ====================== UI ======================
 
   @override
   Widget build(BuildContext context) {
-    int activeStep = 1;
-    bool isDelivery = false;
-    if (_currentPackageStatus == 'accepted') activeStep = 2; 
-    if (_currentPackageStatus == 'on_delivery') {
-      activeStep = 3; 
-      isDelivery = true;
+    int activeStep;
+    switch (_currentPackageStatus) {
+      case 'accepted':
+        activeStep = 2;
+        break;
+      case 'on_delivery':
+        activeStep = 3;
+        break;
+      case 'delivered':
+        activeStep = 4;
+        break;
+      default:
+        activeStep = 1;
     }
-    if (_currentPackageStatus == 'delivered') activeStep = 4; 
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeader(activeStep, isDelivery),
-            const SizedBox(height: 24.0),
-            _buildMap(), // Map แสดงตำแหน่ง Real-time
-            const SizedBox(height: 16),
-            _buildTabBar(),
-            const SizedBox(height: 8),
-            _buildTabContent(), // เปลี่ยนตามสถานะปัจจุบัน
-            _buildSectionTitle("ข้อมูลสินค้า"),
-            const SizedBox(height: 16),
-            _buildProductCard(), // *ใช้ข้อมูลสินค้าจริง*
-            const SizedBox(height: 24),
-          ],
-        ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildHeader(activeStep),
+                const SizedBox(height: 24.0),
+                _buildMap(),
+                const SizedBox(height: 16),
+                _buildTabBar(),
+                const SizedBox(height: 8),
+                _buildTabContent(),
+                _buildSectionTitle("ข้อมูลผู้ติดต่อและที่อยู่"),
+                const SizedBox(height: 16),
+                _buildAddressCard(),
+                _buildSectionTitle("ข้อมูลสินค้า"),
+                const SizedBox(height: 16),
+                _buildProductCard(),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: CircularProgressIndicator(color: kYellow),
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildHeader(int activeStep, bool isDelivery) {
+  // ----- Header & Stepper (เหมือนเดิม) -----
+  Widget _buildHeader(int activeStep) {
+    bool isActive(int step) => activeStep == step;
+    bool connectorOnBefore(int step) => activeStep > step;
+
     return Container(
       padding: const EdgeInsets.only(top: 50, bottom: 20),
       decoration: const BoxDecoration(color: kYellow),
@@ -359,29 +361,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   children: [
-                    _buildStepItem(
-                      Icons.hourglass_top_rounded,
-                      "รอรับออเดอร์สินค้า",
-                      activeStep >= 1,
-                    ),
-                    _buildStepConnector(activeStep >= 2),
-                    _buildStepItem(
-                      Icons.assignment_turned_in_outlined,
-                      "ไรเดอร์รับงาน",
-                      activeStep >= 2,
-                    ),
-                    _buildStepConnector(activeStep >= 3),
-                    _buildStepItem(
-                      Icons.delivery_dining_outlined,
-                      "กำลังเดินทางส่งสินค้า",
-                      activeStep >= 3,
-                    ),
-                    _buildStepConnector(activeStep >= 4),
-                    _buildStepItem(
-                      Icons.check_circle_outline_rounded,
-                      "ส่งสินค้าเสร็จสิ้น",
-                      activeStep >= 4,
-                    ),
+                    _buildStepItem(Icons.hourglass_top, "รอรับออเดอร์", isActive(1)),
+                    _buildStepConnector(connectorOnBefore(1)),
+                    _buildStepItem(Icons.assignment_turned_in, "ไรเดอร์รับงาน", isActive(2)),
+                    _buildStepConnector(connectorOnBefore(2)),
+                    _buildStepItem(Icons.delivery_dining, "กำลังเดินทาง", isActive(3)),
+                    _buildStepConnector(connectorOnBefore(3)),
+                    _buildStepItem(Icons.check_circle, "ส่งเสร็จสิ้น", isActive(4)),
                   ],
                 ),
               ),
@@ -393,13 +379,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.black, size: 28),
               onPressed: () {
-                if (_currentPackageStatus == 'delivered') {
-                   Navigator.of(context).pop();
-                } else {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     const SnackBar(content: Text('กรุณาส่งงานปัจจุบันให้เสร็จสิ้นก่อน'), backgroundColor: Colors.red),
-                   );
-                }
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const HomePageRider()),
+                  (route) => false,
+                );
               },
             ),
           ),
@@ -408,34 +391,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  Widget _buildPageTitle(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          color: kYellow,
-          fontSize: 18,
-        ),
-      ),
-    );
-  }
-
   Widget _buildStepItem(IconData icon, String label, bool isActive) {
     final Color color = isActive ? darkGreenText : Colors.grey.shade400;
-
     return Expanded(
       child: Column(
         children: [
@@ -469,10 +426,35 @@ class _TrackingScreenState extends State<TrackingScreen> {
         children: [
           Container(
             height: 3,
-            color: isActive ? darkGreenText : Colors.grey.shade400,
+            color: isActive ? darkGreenText : Colors.grey.shade300,
           ),
           const SizedBox(height: 42),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPageTitle(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: darkGreenText,
+          fontSize: 18,
+        ),
       ),
     );
   }
@@ -485,13 +467,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(10.0),
         border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Text(
         label,
@@ -504,13 +479,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-// ---------------------------------------------------------------------
-
+  // ----- Map (เหมือนเดิม) -----
   Widget _buildMap() {
-    final initialCenter = _currentRiderLocation.latitude != 0 || _currentRiderLocation.longitude != 0
-        ? _currentRiderLocation
-        : _pickupLocation; 
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: ClipRRect(
@@ -520,47 +490,40 @@ class _TrackingScreenState extends State<TrackingScreen> {
           child: FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: initialCenter,
-              initialZoom: 14.0,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
+              initialCenter: _currentRiderLocation,
+              initialZoom: 15.0,
             ),
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.delivery.riderapp', 
               ),
               MarkerLayer(
                 markers: [
-                  // 2.1 Rider Marker (สีแดง) - แสดงตำแหน่งปัจจุบัน
                   Marker(
                     point: _currentRiderLocation,
                     width: 40,
                     height: 40,
                     child: const Icon(
                       Icons.two_wheeler,
-                      color: Color.fromARGB(255, 255, 0, 0), // สีแดงสด
+                      color: Colors.blue,
                       size: 30,
                     ),
                   ),
-                  // 2.2 Pickup Marker (สีแดงเข้ม/จุดเริ่มต้น)
                   Marker(
                     point: _pickupLocation,
                     width: 40,
                     height: 40,
                     child: const Icon(
                       Icons.location_on,
-                      color: Colors.deepOrange, // สีส้มแดง
+                      color: Colors.red,
                       size: 40,
                     ),
                   ),
-                  // 2.3 Dropoff Marker (สีเขียว/จุดหมาย)
                   Marker(
                     point: _dropoffLocation,
                     width: 40,
                     height: 40,
-                    child: Icon(
+                    child: const Icon(
                       Icons.location_on,
                       color: darkGreenText,
                       size: 40,
@@ -575,6 +538,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
+  // ----- Tabs (เหมือนเดิม) -----
   Widget _buildTabBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -589,9 +553,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   Widget _buildTabItem(String label, int index, bool isActive) {
-    final color = isActive ? darkGreenText : Colors.grey.shade400;
-    final fontWeight = isActive ? FontWeight.bold : FontWeight.normal;
-
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -607,205 +568,199 @@ class _TrackingScreenState extends State<TrackingScreen> {
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontWeight: fontWeight,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
             fontSize: 16,
-            color: color,
+            color: isActive ? darkGreenText : Colors.grey.shade400,
           ),
         ),
       ),
     );
-  }
-
-  Widget _buildDeliveryAction() {
-    if (_currentPackageStatus == 'accepted') {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: ElevatedButton.icon(
-          onPressed: () => _updateStatus('on_delivery'),
-          icon: const Icon(Icons.two_wheeler, color: Colors.black),
-          label: const Text('รับสินค้าแล้ว (เริ่มเดินทางไปส่ง)', style: TextStyle(color: Colors.black)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kYellow,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-        ),
-      );
-    } else if (_currentPackageStatus == 'on_delivery') {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: ElevatedButton.icon(
-          onPressed: () => _updateStatus('delivered'),
-          icon: const Icon(Icons.check_circle, color: Colors.white),
-          label: const Text('นำส่งสินค้าสำเร็จ', style: TextStyle(color: Colors.white, fontSize: 18)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: darkGreenText,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-        ),
-      );
-    }
-    return Container();
   }
 
   Widget _buildTabContent() {
     if (_currentPackageStatus != 'delivered') {
       return Column(
         children: [
-          _buildRiderLocationCard(), // แสดงที่อยู่ปัจจุบันของ Rider
-          const SizedBox(height: 16),
           _buildPhotoUploaders(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           _buildDeliveryAction(),
           const SizedBox(height: 16),
-          _buildAddressCard(), // ที่อยู่จุดรับ/ส่ง
         ],
       );
     } else {
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 40),
+        padding:
+            const EdgeInsets.symmetric(vertical: 40, horizontal: 16.0),
         child: Center(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_circle_outline_rounded, color: darkGreenText, size: 60),
+              const Icon(Icons.check_circle_outline_rounded,
+                  color: darkGreenText, size: 60),
               const SizedBox(height: 8),
               const Text(
                 "นำส่งสินค้าสำเร็จแล้ว",
-                style: TextStyle(color: darkGreenText, fontWeight: FontWeight.bold, fontSize: 18),
+                style: TextStyle(
+                    color: darkGreenText,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18),
               ),
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  children: [
-                    _buildCompletedPhoto(_proofPhoto1Url),
-                    const SizedBox(width: 16),
-                    _buildCompletedPhoto(_proofPhoto2Url),
-                  ],
-                ),
+              Row(
+                children: [
+                  _buildCompletedPhoto(_proofPhoto1Url),
+                  const SizedBox(width: 16),
+                  _buildCompletedPhoto(_proofPhoto2Url),
+                ],
               )
             ],
+          ),
         ),
-      ),
-    );
+      );
     }
   }
 
   Widget _buildCompletedPhoto(String? imageUrl) {
-      return Expanded(
-        child: Container(
-          height: 110,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15.0),
-            image: DecorationImage(
-              image: NetworkImage(imageUrl ?? "https://via.placeholder.com/110?text=No+Image"),
-              fit: BoxFit.cover,
+    return Expanded(
+      child: Container(
+        height: 110,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15.0),
+          image: DecorationImage(
+            image: NetworkImage(
+                imageUrl ?? "https://via.placeholder.com/110?text=No+Image"),
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ----- Actions by status (แก้ไข) -----
+  Widget _buildDeliveryAction() {
+    if (_currentPackageStatus == 'accepted') {
+      final canPress = _localProofPhoto1 != null; // เช็คจากรูปในเครื่อง
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: canPress ? () => _updateStatus('on_delivery') : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kYellow,
+              disabledBackgroundColor: Colors.grey.shade400,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text(
+              'รับสินค้าแล้ว',
+              style: TextStyle(color: Colors.black, fontSize: 16),
             ),
           ),
         ),
       );
+    } else if (_currentPackageStatus == 'on_delivery') {
+      final canPress = _proofPhoto2Url != null; // เช็คจาก URL รูปที่ 2
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: canPress ? () => _updateStatus('delivered') : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: darkGreenText,
+              disabledBackgroundColor: Colors.grey.shade400,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text(
+              'นำส่งสินค้าสำเร็จ',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
+  // ----- Photo Uploaders (แก้ไข) -----
   Widget _buildPhotoUploaders() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
+          // รูปที่ 1 (จุดรับสินค้า)
           _buildPhotoPlaceholder(
-            _proofPhoto1Url,
-            "รูปที่ 1 (มุมกว้าง)",
-            () => _mockTakeAndUploadPhoto(1),
+            localImageFile: _localProofPhoto1, // **ส่งไฟล์รูปในเครื่องไปแสดง**
+            imageUrl: _proofPhoto1Url,
+            label: "ถ่ายรูป ณ จุดรับ",
+            onCameraTap: _takePhotoForPickup, // **เรียกฟังก์ชันถ่ายรูป (ยังไม่อัปโหลด)**
+            canTap: _proofPhoto1Url == null && _localProofPhoto1 == null && _currentPackageStatus == 'accepted',
           ),
           const SizedBox(width: 16),
+          // รูปที่ 2 (จุดส่งสินค้า)
           _buildPhotoPlaceholder(
-            _proofPhoto2Url,
-            "รูปที่ 2 (สินค้า)",
-            () => _mockTakeAndUploadPhoto(2),
+            imageUrl: _proofPhoto2Url,
+            label: "ถ่ายรูป ณ จุดส่ง",
+            onCameraTap: _takeAndUploadPhotoForDropoff, // **เรียกฟังก์ชันถ่ายและอัปโหลด**
+            canTap: _proofPhoto2Url == null && _currentPackageStatus == 'on_delivery',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPhotoPlaceholder(String? imageUrl, String label, VoidCallback onCameraTap) {
+  Widget _buildPhotoPlaceholder({
+    String? imageUrl,
+    xpicker.XFile? localImageFile, // **รับไฟล์รูปในเครื่อง**
+    required String label,
+    required VoidCallback onCameraTap,
+    required bool canTap,
+  }) {
     return Expanded(
       child: InkWell(
-        onTap: _currentPackageStatus == 'on_delivery' && imageUrl == null ? onCameraTap : null,
+        onTap: canTap ? onCameraTap : null,
         borderRadius: BorderRadius.circular(15.0),
         child: Container(
-          height: 110,
+          height: 120,
           decoration: BoxDecoration(
-            color: imageUrl != null ? Colors.white : Colors.grey[100],
+            color: Colors.white,
             borderRadius: BorderRadius.circular(15.0),
             border: Border.all(color: Colors.grey.shade300),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4),
-            ],
-            image: imageUrl != null
+            image: localImageFile != null
                 ? DecorationImage(
-                      image: NetworkImage(imageUrl),
-                      fit: BoxFit.cover,
-                    )
-                : null,
+                    image: FileImage(File(localImageFile.path)), // **แสดงรูปจากไฟล์**
+                    fit: BoxFit.cover)
+                : imageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(imageUrl), fit: BoxFit.cover)
+                    : null,
           ),
-          child: imageUrl == null
+          child: (imageUrl == null && localImageFile == null)
               ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.camera_alt_rounded, color: primaryGreen, size: 35),
+                    Icon(Icons.camera_alt_rounded,
+                        color: canTap ? primaryGreen : Colors.grey, size: 40),
                     const SizedBox(height: 4),
-                    Text(label, style: const TextStyle(fontSize: 12, color: primaryGreen)),
+                    Text(label,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: canTap ? primaryGreen : Colors.grey)),
                   ],
                 )
-              : Container(),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildRiderLocationCard() {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.my_location_rounded, color: Colors.blue, size: 30),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '📍 ที่อยู่ปัจจุบันของคุณ (Rider)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _currentRiderAddress, // *** แสดงที่อยู่ปัจจุบันของ Rider ***
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    softWrap: true,
-                  ),
-                ],
-              ),
-            ),
-          ],
+              : null,
         ),
       ),
     );
   }
 
-
+  // ----- Address & Product Cards (เหมือนเดิม) -----
   Widget _buildAddressCard() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -815,25 +770,23 @@ class _TrackingScreenState extends State<TrackingScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // ********** ที่อยู่รับสินค้า (Pickup) **********
             _buildAddressInfo(
-                icon: Icons.location_on,
-                iconColor: Colors.red,
-                title: "จุดรับสินค้า (ผู้ส่ง): $_pickupAddress",
-                name: _senderName,
-                phone: _senderPhone,
-                labelPrefix: "ชื่อผู้ส่ง",
-              ),
+              icon: Icons.location_on,
+              iconColor: Colors.red,
+              title: "จุดรับสินค้า (ผู้ส่ง): $_pickupAddress",
+              name: _senderName,
+              phone: _senderPhone,
+              labelPrefix: "ชื่อผู้ส่ง",
+            ),
             const Divider(height: 32, color: Colors.grey),
-            // ********** ที่อยู่ส่งสินค้า (Dropoff) **********
             _buildAddressInfo(
-                icon: Icons.location_on,
-                iconColor: darkGreenText,
-                title: "จุดส่งสินค้า (ผู้รับ): $_dropoffAddress",
-                name: _receiverName,
-                phone: _receiverPhone,
-                labelPrefix: "ชื่อผู้รับ",
-              ),
+              icon: Icons.location_on,
+              iconColor: darkGreenText,
+              title: "จุดส่งสินค้า (ผู้รับ): $_dropoffAddress",
+              name: _receiverName,
+              phone: _receiverPhone,
+              labelPrefix: "ชื่อผู้รับ",
+            ),
           ],
         ),
       ),
@@ -857,21 +810,15 @@ class _TrackingScreenState extends State<TrackingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              Text(
-                "$labelPrefix : $name",
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-              Text(
-                "เบอร์โทรศัพท์ : $phone",
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+              Text("$labelPrefix : $name",
+                  style:
+                      const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text("เบอร์โทรศัพท์ : $phone",
+                  style:
+                      const TextStyle(fontSize: 12, color: Colors.black54)),
             ],
           ),
         ),
@@ -895,6 +842,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => 
+                  const Icon(Icons.image_not_supported, size: 80, color: Colors.grey),
               ),
             ),
             const SizedBox(width: 16),
@@ -902,15 +851,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "รายละเอียดสินค้า:",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
+                  const Text("รายละเอียดสินค้า:",
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Text(
-                    _productDescription,
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
+                  Text(_productDescription,
+                      style: const TextStyle(
+                          fontSize: 13, color: Colors.black54)),
                 ],
               ),
             ),

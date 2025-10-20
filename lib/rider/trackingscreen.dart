@@ -7,40 +7,28 @@ class TrackingScreen extends StatefulWidget {
   _TrackingScreenState createState() => _TrackingScreenState();
 }
 
-// 2. นี่คือคลาส State (เมธอด helper ทั้งหมดต้องอยู่ในนี้)
 class _TrackingScreenState extends State<TrackingScreen> {
-  // กำหนดสีเหลืองหลักที่ใช้ในแอป
-  static const Color primaryYellow = Color(0xFFFDE100);
+  static const Color primaryGreen = Color(0xFF98C21D);
+  static const Color darkGreenText = Color(0xFF98C21D);
 
-  // ตัวแปรสำหรับเก็บสถานะแท็บที่เลือก (0 = สถานะกำลังส่ง, 1 = นำส่งสินค้าแล้ว)
-  int _selectedTabIndex = 0; // <--- ตัวแปรนี้อยู่ "ใน" State
+  final int _selectedTabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200], // พื้นหลังสีเทาอ่อน
+      backgroundColor: Colors.grey[200],
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. ส่วนหัวสีเหลือง + Stepper
-            _buildHeader(), // <--- เรียกใช้เมธอด
-            const SizedBox(height: 24.0), // (ปรับตัวเลข 24.0 ได้ตามชอบ)
-            // 3. แผนที่
+            _buildHeader(),
+            const SizedBox(height: 24.0),
             _buildMap(),
             const SizedBox(height: 16),
-
-            // 4. แท็บเลือกสถานะ
             _buildTabBar(),
-            const SizedBox(height: 16),
-
-            // 5. เนื้อหาตามแท็บที่เลือก
+            const SizedBox(height: 8),
             _buildTabContent(),
-
-            // 6. ปุ่ม "ข้อมูลสินค้า"
-            _buildTitleButton("ข้อมูลสินค้า"),
-            const SizedBox(height: 20),
-
-            // 7. การ์ดข้อมูลสินค้า
+            _buildSectionTitle("ข้อมูลสินค้า"),
+            const SizedBox(height: 16),
             _buildProductCard(),
             const SizedBox(height: 24),
           ],
@@ -49,101 +37,74 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // vvvv เมธอด Helper ทั้งหมดต้องอยู่ "ภายใน" คลาส _TrackingScreenState vvvv
-
   /// --- WIDGET BUILDERS --- ///
 
-  /// Widget สำหรับสร้างส่วนหัวสีเหลือง + Stepper
+  /// แก้ไข Widget นี้เพื่อเพิ่มปุ่มย้อนกลับ ///
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.only(top: 50, bottom: 20, left: 16, right: 16),
-      decoration: const BoxDecoration(color: primaryYellow),
-      child: Row(
+      padding: const EdgeInsets.only(top: 50, bottom: 20),
+      decoration: const BoxDecoration(color: Color(0xFFEDE500)),
+      child: Stack(
+        // 1. ใช้ Stack เพื่อให้วาง Widget ซ้อนกันได้
         children: [
-          _buildStepItem(
-            Icons.hourglass_top_rounded,
-            "รอไรเดอร์รับสินค้า",
-            true,
+          // 2. เนื้อหาเดิม (จัดให้อยู่ตรงกลาง)
+          Column(
+            children: [
+              _buildPageTitle("สถานะการจัดส่งสินค้า"),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  children: [
+                    _buildStepItem(
+                      Icons.hourglass_top_rounded,
+                      "รอรับออเดอร์สินค้า",
+                      true,
+                    ),
+                    _buildStepConnector(true),
+                    _buildStepItem(
+                      Icons.assignment_turned_in_outlined,
+                      "ไรเดอร์รับงาน",
+                      true,
+                    ),
+                    _buildStepConnector(true),
+                    _buildStepItem(
+                      Icons.delivery_dining_outlined,
+                      "กำลังเดินทางส่งสินค้า",
+                      true,
+                      isCurrent: true,
+                    ),
+                    _buildStepConnector(false),
+                    _buildStepItem(
+                      Icons.check_circle_outline_rounded,
+                      "ส่งสินค้าเสร็จสิ้น",
+                      false,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          _buildStepConnector(),
-          _buildStepItem(
-            Icons.assignment_turned_in_outlined,
-            "ไรเดอร์รับงาน",
-            true,
-          ),
-          _buildStepConnector(),
-          _buildStepItem(
-            Icons.delivery_dining_outlined,
-            "กำลังเดินทางส่งสินค้า",
-            true,
-            isCurrent: true,
-          ),
-          _buildStepConnector(),
-          _buildStepItem(
-            Icons.check_circle_outline_rounded,
-            "ส่งสินค้าเสร็จสิ้น",
-            false,
+          // 3. ปุ่มย้อนกลับ (วางไว้มุมบนซ้าย)
+          Positioned(
+            top: 0, // จัดตำแหน่งปุ่มให้อยู่ในระยะที่เหมาะสม
+            left: 8,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 28),
+              onPressed: () {
+                // คำสั่งย้อนกลับไปหน้าก่อนหน้า
+                Navigator.of(context).pop();
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Widget สำหรับสร้าง 1 ไอคอนใน Stepper
-  Widget _buildStepItem(
-    IconData icon,
-    String label,
-    bool isActive, {
-    bool isCurrent = false,
-  }) {
-    final Color color = isActive
-        ? (isCurrent ? Colors.red : Colors.green)
-        : Colors.grey;
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white, // วงกลมสีขาว
-            border: Border.all(color: color, width: 2),
-          ),
-          child: Icon(icon, color: color, size: 28),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.black, // สีตัวอักษร
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Widget สำหรับสร้างเส้นเชื่อมระหว่าง Step
-  Widget _buildStepConnector() {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            height: 4, // หนาขึ้น
-            color: Colors.white, // เส้นสีขาว
-          ),
-          const SizedBox(height: 42), // จัดตำแหน่ง
-        ],
-      ),
-    );
-  }
-
-  /// Widget สำหรับปุ่มไตเติ้ล (ใช้ซ้ำ)
-  Widget _buildTitleButton(String label) {
+  Widget _buildPageTitle(String label) {
     return Container(
-      margin: const EdgeInsets.only(top: 16.0),
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10.0),
@@ -159,21 +120,96 @@ class _TrackingScreenState extends State<TrackingScreen> {
         label,
         style: const TextStyle(
           fontWeight: FontWeight.bold,
-          color: Color.fromARGB(255, 20, 176, 18),
+          color: Color(0xFFEDE500),
+          fontSize: 18,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepItem(
+    IconData icon,
+    String label,
+    bool isActive, {
+    bool isCurrent = false,
+  }) {
+    final Color color = isActive ? darkGreenText : Colors.grey.shade400;
+
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(color: color, width: 2.5),
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepConnector(bool isActive) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            height: 3,
+            color: isActive ? darkGreenText : Colors.grey.shade400,
+          ),
+          const SizedBox(height: 42),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String label) {
+    return Container(
+      margin: const EdgeInsets.only(top: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: darkGreenText,
           fontSize: 16,
         ),
       ),
     );
   }
 
-  /// Widget สำหรับแสดงแผนที่
   Widget _buildMap() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15.0),
         child: Image.network(
-          "https://i.imgur.com/3Z0NpyA.png", // Placeholder รูปแผนที่
+          "https://i.imgur.com/3Z0NpyA.png",
           height: 250,
           width: double.infinity,
           fit: BoxFit.cover,
@@ -182,7 +218,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Widget สำหรับสร้างแท็บ
   Widget _buildTabBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -198,45 +233,23 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   Widget _buildTabItem(String label, int index) {
     return Expanded(
-      child: InkWell(
-        onTap: () {
-          // นี่คือฟังก์ชันที่ทำให้ "แดง" ถ้าอยู่ผิดที่
-          setState(() {
-            _selectedTabIndex = index;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            // // นี่คือตัวแปรที่ทำให้ "แดง" ถ้าอยู่ผิดที่
-            // color: _selectedTabIndex == index
-            //     ? primaryYellow.withOpacity(0.7)
-            //     : Colors.white,
-            // borderRadius: BorderRadius.circular(10.0),
-            // border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-
-              // vvvv ปรับสีที่บรรทัดนี้ครับ vvvv
-              color: Color(0xFF0FC964),
-              // ^^^^ ^^^^
-            ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: darkGreenText,
           ),
         ),
       ),
     );
   }
 
-  /// Widget สำหรับแสดงเนื้อหาของแท็บ
   Widget _buildTabContent() {
-    // นี่คือตัวแปรที่ทำให้ "แดง" ถ้าอยู่ผิดที่
     if (_selectedTabIndex == 0) {
-      // --- เนื้อหาแท็บ "สถานะกำลังส่ง" ---
       return Column(
         children: [
           _buildPhotoUploaders(),
@@ -245,25 +258,25 @@ class _TrackingScreenState extends State<TrackingScreen> {
         ],
       );
     } else {
-      // --- เนื้อหาแท็บ "นำส่งสินค้าแล้ว" ---
       return Container(
-        padding: const EdgeInsets.all(20),
-        child: const Text(
-          "ยังไม่มีข้อมูลการนำส่งสินค้า",
-          style: TextStyle(color: Colors.grey),
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: const Center(
+          child: Text(
+            "ยังไม่มีข้อมูลการนำส่งสินค้า",
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
         ),
       );
     }
   }
 
-  /// Widget สำหรับช่องอัปโหลดรูป
   Widget _buildPhotoUploaders() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
           _buildPhotoPlaceholder(),
-          const SizedBox(width: 10),
+          const SizedBox(width: 16),
           _buildPhotoPlaceholder(),
         ],
       ),
@@ -273,39 +286,38 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Widget _buildPhotoPlaceholder() {
     return Expanded(
       child: Container(
-        height: 100,
+        height: 110,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(10.0),
+          borderRadius: BorderRadius.circular(15.0),
           border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4),
+          ],
         ),
-        child: Icon(
-          Icons.camera_alt_rounded,
-          color: Colors.grey[400],
-          size: 40,
+        child: const Center(
+          child: Icon(Icons.camera_alt_rounded, color: primaryGreen, size: 45),
         ),
       ),
     );
   }
 
-  /// Widget สำหรับการ์ดข้อมูลที่อยู่
   Widget _buildAddressCard() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
-      elevation: 3,
+      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ไอคอนไรเดอร์
             Image.network(
-              "https://i.imgur.com/v8SjA9H.png", // (ใช้รูป Shiba แทน)
+              "https://i.imgur.com/28h2Lna.png",
               width: 60,
               height: 60,
             ),
             const SizedBox(width: 16),
-            // รายละเอียดที่อยู่
             Expanded(
               child: Column(
                 children: [
@@ -315,14 +327,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     title: "คณะวิทยาการสารสนเทศ",
                     name: "Thitima",
                     phone: "0655764805",
+                    labelPrefix: "ชื่อผู้ส่ง",
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   _buildAddressInfo(
                     icon: Icons.location_on,
                     iconColor: Colors.green,
                     title: "หอพักเรืองรองริเวอร์วิว",
                     name: "Kanokwan Laptawee",
-                    phone: "0967654321",
+                    phone: "0987654321",
+                    labelPrefix: "ชื่อผู้รับ",
                   ),
                 ],
               ),
@@ -333,13 +347,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Helper Widget สำหรับแสดงข้อมูลที่อยู่ (คัดลอกจาก RiderHomeScreen)
   Widget _buildAddressInfo({
     required IconData icon,
     required Color iconColor,
     required String title,
     required String name,
     required String phone,
+    required String labelPrefix,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,7 +372,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 ),
               ),
               Text(
-                "ชื่อผู้รับ : $name",
+                "$labelPrefix : $name",
                 style: const TextStyle(fontSize: 12, color: Colors.black54),
               ),
               Text(
@@ -372,42 +386,37 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Widget สำหรับการ์ดข้อมูลสินค้า
   Widget _buildProductCard() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
-            // รูปสินค้า
             ClipRRect(
               borderRadius: BorderRadius.circular(10.0),
               child: Image.network(
-                "https://i.imgur.com/kS9YnSg.png", // Placeholder รูปเสื้อ
+                "https://i.imgur.com/kS9YnSg.png",
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
               ),
             ),
             const SizedBox(width: 16),
-            // รายละเอียดสินค้า
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: const [
                   Text(
                     "รายละเอียดสินค้า:",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
+                  SizedBox(height: 4),
                   Text(
                     "เสื้อยืดแขนยาวสีดำ",
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
                   ),
                 ],
               ),
@@ -417,6 +426,4 @@ class _TrackingScreenState extends State<TrackingScreen> {
       ),
     );
   }
-
-  // ^^^^ นี่คือปีกกาปิดของคลาส _TrackingScreenState ตรวจสอบว่าเมธอดทั้งหมดอยู่ "ก่อน" ปีกกานี้ ^^^^
 }

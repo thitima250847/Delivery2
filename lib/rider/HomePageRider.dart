@@ -1,3 +1,4 @@
+import 'package:delivery/rider/trackingscreen.dart';
 import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,7 +19,7 @@ class _HomePageRiderState extends State<HomePageRider> {
   static const kYellow = Color(0xFFF0DB0C); // ใช้สีให้เข้ากัน
   static const kTextBlack = Color(0xFF111111);
   static const kGreyIcon = Color(0xFF9E9E9E);
-  
+
   // --- ฟังก์ชันสำหรับรับ Order ---
   Future<void> _acceptOrder(String packageId) async {
     try {
@@ -30,10 +31,7 @@ class _HomePageRiderState extends State<HomePageRider> {
       await FirebaseFirestore.instance
           .collection('packages')
           .doc(packageId)
-          .update({
-        'status': 'accepted', 
-        'rider_id': riderId,
-      });
+          .update({'status': 'accepted', 'rider_id': riderId});
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -64,6 +62,7 @@ class _HomePageRiderState extends State<HomePageRider> {
         children: [
           _buildHeader(),
           _buildTitleButton(),
+          _buildNavigateButton(),
           // --- StreamBuilder: ส่วนแสดงผลรายการสินค้า ---
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -79,7 +78,9 @@ class _HomePageRiderState extends State<HomePageRider> {
                   print(">>> SNAPSHOT ERROR: ${snapshot.error}");
                 }
                 if (snapshot.hasData) {
-                  print(">>> SNAPSHOT HAS DATA: Found ${snapshot.data!.docs.length} documents");
+                  print(
+                    ">>> SNAPSHOT HAS DATA: Found ${snapshot.data!.docs.length} documents",
+                  );
                 } else {
                   print(">>> SNAPSHOT HAS NO DATA YET");
                 }
@@ -91,11 +92,15 @@ class _HomePageRiderState extends State<HomePageRider> {
                 }
                 if (snapshot.hasError) {
                   return Center(
-                      child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล: ${snapshot.error}'));
+                    child: Text(
+                      'เกิดข้อผิดพลาดในการโหลดข้อมูล: ${snapshot.error}',
+                    ),
+                  );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(
-                      child: Text('ยังไม่มีรายการสินค้าให้จัดส่ง'));
+                    child: Text('ยังไม่มีรายการสินค้าให้จัดส่ง'),
+                  );
                 }
 
                 final packages = snapshot.data!.docs;
@@ -105,8 +110,7 @@ class _HomePageRiderState extends State<HomePageRider> {
                     final packageDoc = packages[index];
                     final packageData =
                         packageDoc.data() as Map<String, dynamic>;
-                    return _buildOrderCard(
-                        context, packageDoc.id, packageData);
+                    return _buildOrderCard(context, packageDoc.id, packageData);
                   },
                 );
               },
@@ -137,17 +141,31 @@ class _HomePageRiderState extends State<HomePageRider> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("สวัสดี", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kTextBlack)),
+              const Text(
+                "สวัสดี",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: kTextBlack,
+                ),
+              ),
               Text(
                 widget.name, // ใช้ widget.name ที่ส่งมาจาก Login
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: kTextBlack),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
+                  color: kTextBlack,
+                ),
               ),
             ],
           ),
           Container(
             width: 70,
             height: 70,
-            decoration: const BoxDecoration(color: kGreyIcon, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: kGreyIcon,
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.person, color: Colors.white, size: 50),
           ),
         ],
@@ -179,9 +197,13 @@ class _HomePageRiderState extends State<HomePageRider> {
   }
 
   Widget _buildOrderCard(
-      BuildContext context, String docId, Map<String, dynamic> package) {
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> package,
+  ) {
     final senderInfo = package['sender_info'] as Map<String, dynamic>? ?? {};
-    final receiverInfo = package['receiver_info'] as Map<String, dynamic>? ?? {};
+    final receiverInfo =
+        package['receiver_info'] as Map<String, dynamic>? ?? {};
     final imageUrl = package['proof_image_url'] as String? ?? '';
 
     return Card(
@@ -195,7 +217,11 @@ class _HomePageRiderState extends State<HomePageRider> {
           children: [
             Text(
               "Tracking ID\n#${docId.substring(0, 8)}",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, height: 1.2),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -240,21 +266,25 @@ class _HomePageRiderState extends State<HomePageRider> {
                                     width: 100,
                                     height: 100,
                                     child: Center(
-                                        child: CircularProgressIndicator()));
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
                           },
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
-                                width: 100,
-                                height: 100,
-                                color: Colors.grey[200],
-                                child: const Icon(Icons.image_not_supported));
+                              width: 100,
+                              height: 100,
+                              color: Colors.grey[200],
+                              child: const Icon(Icons.image_not_supported),
+                            );
                           },
                         )
                       : Container(
                           width: 100,
                           height: 100,
                           color: Colors.grey[200],
-                          child: const Icon(Icons.image_not_supported)),
+                          child: const Icon(Icons.image_not_supported),
+                        ),
                 ),
               ],
             ),
@@ -264,13 +294,27 @@ class _HomePageRiderState extends State<HomePageRider> {
               children: [
                 ElevatedButton.icon(
                   onPressed: () => _acceptOrder(docId),
-                  icon: const Icon(Icons.inventory_2_outlined, color: Colors.black),
-                  label: const Text("รับ Order", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  icon: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.black,
+                  ),
+                  label: const Text(
+                    "รับ Order",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kYellow,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ],
@@ -298,9 +342,21 @@ class _HomePageRiderState extends State<HomePageRider> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              Text("$labelPrefix : $name", style: const TextStyle(fontSize: 13, color: Colors.black54)),
-              Text("เบอร์โทรศัพท์ : $phone", style: const TextStyle(fontSize: 13, color: Colors.black54)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                "$labelPrefix : $name",
+                style: const TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              Text(
+                "เบอร์โทรศัพท์ : $phone",
+                style: const TextStyle(fontSize: 13, color: Colors.black54),
+              ),
             ],
           ),
         ),
@@ -319,13 +375,13 @@ class _HomePageRiderState extends State<HomePageRider> {
             _BottomItem(
               icon: Icons.home_filled,
               label: 'หน้าแรก',
-              color: Colors.black, 
-              onTap: () {}, 
+              color: Colors.black,
+              onTap: () {},
             ),
             _BottomItem(
               icon: Icons.exit_to_app_rounded,
               label: 'ออกจากระบบ',
-              color: kYellow, 
+              color: kYellow,
               onTap: () {
                 // ออกจากระบบ -> กลับไปหน้า Login และล้างเส้นทางเก่า
                 FirebaseAuth.instance.signOut(); // ต้อง signOut
@@ -339,6 +395,38 @@ class _HomePageRiderState extends State<HomePageRider> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // --- ฟังก์ชันสำหรับปุ่มใหม่ที่จะเพิ่ม ---
+  Widget _buildNavigateButton() {
+    return Padding(
+      // เพิ่มระยะห่างเล็กน้อย
+      padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
+      child: ElevatedButton(
+        onPressed: () {
+          // ใส่โค้ดสำหรับการเปลี่ยนหน้า_ที่นี่
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const TrackingScreen(),
+            ), // <--- ไปยังหน้าที่คุณต้องการ
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryYellow, // ใช้สีเหลืองจากธีม
+          foregroundColor: kTextBlack, // ใช้สีดำจากธีม
+          // ทำให้ปุ่มเต็มความกว้าง
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+          elevation: 2,
+        ),
+        child: const Text(
+          'สถานะการส่ง', // <--- เปลี่ยนข้อความตามต้องการ
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );

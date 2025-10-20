@@ -21,6 +21,7 @@ class _HomePageRiderState extends State<HomePageRider> {
   static const kGreyIcon = Color(0xFF9E9E9E);
 
   // --- ฟังก์ชันสำหรับรับ Order ---
+  // --- ฟังก์ชันสำหรับรับ Order ---
   Future<void> _acceptOrder(String packageId) async {
     try {
       final riderId = FirebaseAuth.instance.currentUser?.uid;
@@ -33,6 +34,7 @@ class _HomePageRiderState extends State<HomePageRider> {
           .doc(packageId)
           .update({'status': 'accepted', 'rider_id': riderId});
 
+      // ตรวจสอบ mounted ก่อนใช้ context
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -40,6 +42,14 @@ class _HomePageRiderState extends State<HomePageRider> {
             backgroundColor: Colors.green,
           ),
         );
+
+        // --- เพิ่มโค้ดส่วนนี้ ---
+        // เมื่อรับงานสำเร็จ ให้เด้งไปหน้า TrackingScreen
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TrackingScreen()),
+        );
+        // -----------------------
       }
     } catch (e) {
       if (mounted) {

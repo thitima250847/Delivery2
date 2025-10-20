@@ -2,6 +2,8 @@ import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+// ต้องมีการ import หน้า TrackingScreen เข้ามา เพื่อนำทางไปหน้าติดตามงาน
+import 'trackingscreen.dart'; // ตรวจสอบ path ของไฟล์นี้ให้ถูกต้อง
 
 // เปลี่ยนจาก StatelessWidget เป็น StatefulWidget เพื่อให้มี StreamBuilder ได้
 class HomePageRider extends StatefulWidget {
@@ -19,12 +21,48 @@ class _HomePageRiderState extends State<HomePageRider> {
   static const kTextBlack = Color(0xFF111111);
   static const kGreyIcon = Color(0xFF9E9E9E);
 
-  // --- ฟังก์ชันสำหรับรับ Order ---
-  // HomePageRider.dart
+  // เพิ่มตัวแปรเพื่อเก็บ ID งานค้าง (ถ้ามี)
+  String? _ongoingPackageId;
 
-  // ... ในคลาส _HomePageRiderState
+  @override
+  void initState() {
+    super.initState();
+    // เพิ่ม: ตรวจสอบงานค้างทันทีที่เข้าสู่หน้า
+    _checkOngoingTaskAndNavigate();
+  }
 
-  // --- ฟังก์ชันสำหรับรับ Order (แก้ไข) ---
+  // เพิ่ม: ฟังก์ชันตรวจสอบงานค้างและนำทางไปหน้าติดตามงาน
+  Future<void> _checkOngoingTaskAndNavigate() async {
+    final riderId = FirebaseAuth.instance.currentUser?.uid;
+    if (riderId == null) return;
+
+    // ค้นหางานที่มีสถานะ 'accepted' (รับงานแล้ว) หรือ 'on_delivery' (กำลังเดินทาง)
+    final ongoingPackages = await FirebaseFirestore.instance
+        .collection('packages')
+        .where('rider_id', isEqualTo: riderId)
+        .where('status', whereIn: ['accepted', 'on_delivery'])
+        .limit(1)
+        .get();
+
+    if (ongoingPackages.docs.isNotEmpty) {
+      final packageId = ongoingPackages.docs.first.id;
+      _ongoingPackageId = packageId; // เก็บ ID งานค้างไว้
+
+      // นำทางไปหน้า TrackingScreen โดยล้างหน้า Home ออกจาก Stack (pushReplacement)
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TrackingScreen(packageId: packageId),
+          ),
+        );
+      }
+    } else {
+      _ongoingPackageId = null; // ยืนยันว่าไม่มีงานค้าง
+    }
+  }
+
+  // ฟังก์ชันสำหรับรับ Order (แก้ไข)
   Future<void> _acceptOrder(String packageId) async {
     try {
       final riderId = FirebaseAuth.instance.currentUser?.uid;
@@ -32,9 +70,7 @@ class _HomePageRiderState extends State<HomePageRider> {
         throw Exception("ไม่สามารถระบุตัวตนไรเดอร์ได้");
       }
 
-      // --- (1) ตรวจสอบว่า Rider มีงานที่กำลังทำอยู่หรือไม่ ---
-      // ค้นหางานที่มีสถานะ 'accepted' (รับงานแล้ว) หรือ 'on_delivery'
-      // และมี rider_id เป็นของ Rider คนปัจจุบัน
+      // ตรวจสอบว่า Rider มีงานที่กำลังทำอยู่หรือไม่
       final ongoingPackages = await FirebaseFirestore.instance
           .collection('packages')
           .where('rider_id', isEqualTo: riderId)
@@ -47,7 +83,6 @@ class _HomePageRiderState extends State<HomePageRider> {
           "คุณมีงานที่กำลังดำเนินการอยู่แล้ว กรุณาส่งงานปัจจุบันให้เสร็จก่อนรับงานใหม่",
         );
       }
-      // --------------------------------------------------------
 
       // (2) ถ้าไม่มีงานค้าง ให้ดำเนินการรับงาน
       await FirebaseFirestore.instance
@@ -58,8 +93,15 @@ class _HomePageRiderState extends State<HomePageRider> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('รับงานสำเร็จ!'),
+            content: Text('รับงานสำเร็จ! กำลังนำทางไปหน้าติดตาม'), // แก้ข้อความ
             backgroundColor: Colors.green,
+          ),
+        );
+        // *** เพิ่ม: นำทางไปหน้า TrackingScreen ทันทีและแทนที่หน้าปัจจุบัน ***
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TrackingScreen(packageId: packageId),
           ),
         );
       }
@@ -95,20 +137,9 @@ class _HomePageRiderState extends State<HomePageRider> {
                   .where('status', isEqualTo: 'pending')
                   .snapshots(),
               builder: (context, snapshot) {
-                // โค้ด Debug (สำคัญมาก)
+                // โค้ด Debug
                 print("--- StreamBuilder Rebuild ---");
-                if (snapshot.hasError) {
-                  print(">>> SNAPSHOT ERROR: ${snapshot.error}");
-                }
-                if (snapshot.hasData) {
-                  print(
-                    ">>> SNAPSHOT HAS DATA: Found ${snapshot.data!.docs.length} documents",
-                  );
-                } else {
-                  print(">>> SNAPSHOT HAS NO DATA YET");
-                }
-                print("----------------------------");
-                // สิ้นสุดโค้ด Debug
+                // ... (โค้ด Debug เดิม)
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -145,7 +176,7 @@ class _HomePageRiderState extends State<HomePageRider> {
     );
   }
 
-  /// --- WIDGET BUILDERS ---
+  /// --- WIDGET BUILDERS (มีการเพิ่มปุ่มงานค้างใน Header) ---
 
   Widget _buildHeader() {
     return Container(
@@ -158,39 +189,72 @@ class _HomePageRiderState extends State<HomePageRider> {
           bottomRight: Radius.circular(25),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Column(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "สวัสดี",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: kTextBlack,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "สวัสดี",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: kTextBlack,
+                    ),
+                  ),
+                  Text(
+                    widget.name, // ใช้ widget.name ที่ส่งมาจาก Login
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w500,
+                      color: kTextBlack,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                widget.name, // ใช้ widget.name ที่ส่งมาจาก Login
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w500,
-                  color: kTextBlack,
+              Container(
+                width: 70,
+                height: 70,
+                decoration: const BoxDecoration(
+                  color: kGreyIcon,
+                  shape: BoxShape.circle,
                 ),
+                child: const Icon(Icons.person, color: Colors.white, size: 50),
               ),
             ],
           ),
-          Container(
-            width: 70,
-            height: 70,
-            decoration: const BoxDecoration(
-              color: kGreyIcon,
-              shape: BoxShape.circle,
+          // *** ส่วนที่เพิ่ม: ปุ่มสำหรับดูงานที่รับค้างไว้ ***
+          if (_ongoingPackageId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // นำทางไปหน้า TrackingScreen ของงานที่ค้างไว้
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TrackingScreen(packageId: _ongoingPackageId!),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.delivery_dining, color: Colors.white),
+                label: const Text(
+                  "ดูรายการที่ต้องส่ง (งานค้าง)",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kTextBlack,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
+              ),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 50),
-          ),
+          // **********************************************
         ],
       ),
     );
@@ -399,7 +463,9 @@ class _HomePageRiderState extends State<HomePageRider> {
               icon: Icons.home_filled,
               label: 'หน้าแรก',
               color: Colors.black,
-              onTap: () {},
+              onTap: () {
+                // อยู่หน้าแรกอยู่แล้ว ไม่ต้องทำอะไร
+              },
             ),
             _BottomItem(
               icon: Icons.exit_to_app_rounded,

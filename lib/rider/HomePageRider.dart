@@ -21,37 +21,61 @@ class _HomePageRiderState extends State<HomePageRider> {
   static const kGreyIcon = Color(0xFF9E9E9E);
 
   // --- ฟังก์ชันสำหรับรับ Order ---
-  Future<void> _acceptOrder(String packageId) async {
-    try {
-      final riderId = FirebaseAuth.instance.currentUser?.uid;
-      if (riderId == null) {
-        throw Exception("ไม่สามารถระบุตัวตนไรเดอร์ได้");
-      }
+Future<void> _acceptOrder(String packageId) async {
+  try {
+    final riderId = FirebaseAuth.instance.currentUser?.uid;
+    if (riderId == null) {
+      throw Exception("ไม่สามารถระบุตัวตนไรเดอร์ได้");
+    }
 
-      await FirebaseFirestore.instance
-          .collection('packages')
-          .doc(packageId)
-          .update({'status': 'accepted', 'rider_id': riderId});
+    // --- (1) ตรวจสอบว่า Rider มีงานที่กำลังทำอยู่หรือไม่ ---
+    // ค้นหางานที่มีสถานะ 'accepted' (รับงานแล้ว) หรือ 'on_delivery' 
+    // และมี rider_id เป็นของ Rider คนปัจจุบัน
+    final ongoingPackages = await FirebaseFirestore.instance
+        .collection('packages')
+        .where('rider_id', isEqualTo: riderId)
+        .where('status', whereIn: ['accepted', 'on_delivery'])
+        .limit(1)
+        .get();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('รับงานสำเร็จ!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เกิดข้อผิดพลาดในการรับงาน: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (ongoingPackages.docs.isNotEmpty) {
+      throw Exception("คุณมีงานที่กำลังดำเนินการอยู่แล้ว กรุณาส่งงานปัจจุบันให้เสร็จก่อนรับงานใหม่");
+    }
+    // --------------------------------------------------------
+
+    // (2) ถ้าไม่มีงานค้าง ให้ดำเนินการรับงาน
+    await FirebaseFirestore.instance
+        .collection('packages')
+        .doc(packageId)
+        .update({
+      'status': 'accepted', 
+      'rider_id': riderId,
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('รับงานสำเร็จ!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      // แสดงข้อความที่ถูกกำหนดเอง (ถ้าเป็น String)
+      final errorMessage = e.toString().contains("Exception:") 
+          ? e.toString().replaceFirst("Exception: ", "")
+          : 'เกิดข้อผิดพลาดในการรับงาน: $e';
+          
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

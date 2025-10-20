@@ -72,7 +72,7 @@ class _HomePageRiderState extends State<HomePageRider> {
         children: [
           _buildHeader(),
           _buildTitleButton(),
-          _buildNavigateButton(),
+
           // --- StreamBuilder: ส่วนแสดงผลรายการสินค้า ---
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -405,38 +405,6 @@ class _HomePageRiderState extends State<HomePageRider> {
               },
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // --- ฟังก์ชันสำหรับปุ่มใหม่ที่จะเพิ่ม ---
-  Widget _buildNavigateButton() {
-    return Padding(
-      // เพิ่มระยะห่างเล็กน้อย
-      padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
-      child: ElevatedButton(
-        onPressed: () {
-          // ใส่โค้ดสำหรับการเปลี่ยนหน้า_ที่นี่
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const TrackingScreen(),
-            ), // <--- ไปยังหน้าที่คุณต้องการ
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryYellow, // ใช้สีเหลืองจากธีม
-          foregroundColor: kTextBlack, // ใช้สีดำจากธีม
-          // ทำให้ปุ่มเต็มความกว้าง
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10.0),
-          ),
-          elevation: 2,
-        ),
-        child: const Text(
-          'สถานะการส่ง', // <--- เปลี่ยนข้อความตามต้องการ
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );

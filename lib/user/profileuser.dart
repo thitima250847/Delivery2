@@ -220,7 +220,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 text: addressText,
                               ),
                             );
-                        }),
+                        }).toList(),
                         
                         const SizedBox(height: 24.0),
                       ],

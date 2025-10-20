@@ -11,7 +11,7 @@ import 'package:geocoding/geocoding.dart';
 
 class TrackingScreen extends StatefulWidget {
   final String packageId; // เพิ่มตัวแปรสำหรับรับ ID งาน
-  const TrackingScreen({Key? key, required this.packageId}) : super(key: key);
+  const TrackingScreen({super.key, required this.packageId});
 
   @override
   _TrackingScreenState createState() => _TrackingScreenState();
@@ -33,8 +33,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   // ********** 2. ตัวแปรสถานะสำหรับดึงข้อมูลงาน **********
   String _currentRiderAddress = 'กำลังระบุตำแหน่ง...';
-  latlong.LatLng _pickupLocation = const latlong.LatLng(14.0754, 100.6049); // Fallback
-  latlong.LatLng _dropoffLocation = const latlong.LatLng(14.0850, 100.6120); // Fallback
+  final latlong.LatLng _pickupLocation = const latlong.LatLng(14.0754, 100.6049); // Fallback
+  final latlong.LatLng _dropoffLocation = const latlong.LatLng(14.0850, 100.6120); // Fallback
   latlong.LatLng _currentRiderLocation = const latlong.LatLng(14.0754, 100.6049); // ตำแหน่งเริ่มต้น
 
   // ข้อมูลผู้ส่ง (จาก sender_info)
@@ -274,7 +274,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-  Future<void> _mockTakeAndUploadPhoto(int index, {ImageSource source = ImageSource.camera}) async {
+  Future<void> _mockTakeAndUploadPhoto(int index) async {
     final XFile? xFile = await _picker.pickImage(source: ImageSource.camera, imageQuality: 75);
 
     if (xFile == null) {
@@ -746,7 +746,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ],
             image: imageUrl != null
                 ? DecorationImage(
-                      image: NetworkImage(imageUrl!),
+                      image: NetworkImage(imageUrl),
                       fit: BoxFit.cover,
                     )
                 : null,
@@ -819,7 +819,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             _buildAddressInfo(
                 icon: Icons.location_on,
                 iconColor: Colors.red,
-                title: "จุดรับสินค้า (ผู้ส่ง): ${_pickupAddress}",
+                title: "จุดรับสินค้า (ผู้ส่ง): $_pickupAddress",
                 name: _senderName,
                 phone: _senderPhone,
                 labelPrefix: "ชื่อผู้ส่ง",
@@ -829,7 +829,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             _buildAddressInfo(
                 icon: Icons.location_on,
                 iconColor: darkGreenText,
-                title: "จุดส่งสินค้า (ผู้รับ): ${_dropoffAddress}",
+                title: "จุดส่งสินค้า (ผู้รับ): $_dropoffAddress",
                 name: _receiverName,
                 phone: _receiverPhone,
                 labelPrefix: "ชื่อผู้รับ",

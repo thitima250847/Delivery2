@@ -4,9 +4,14 @@ import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+
 class StatusScreen extends StatefulWidget {
   final String packageId; // รับ ID งานที่ต้องการติดตาม
   const StatusScreen({super.key, required this.packageId}); 
+// vvv เปลี่ยนชื่อคลาสเป็น StatusScreen
+class StatusScreen extends StatelessWidget {
+  // vvv อัปเดต Constructor
+  const StatusScreen({super.key});
 
   @override
   State<StatusScreen> createState() => _StatusScreenState();

@@ -238,7 +238,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
+
               Navigator.push(context, MaterialPageRoute(builder: (_) => DetailPage()));
+              // vvvv 2. [สำคัญ] ลองลบ const ถ้า DetailPage ไม่มี const constructor vvvv
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DetailPage(packageId: '',),
+                ), // <-- ลองลบ const
+              );
+              print('กดปุ่ม รายละเอียด');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryYellow,

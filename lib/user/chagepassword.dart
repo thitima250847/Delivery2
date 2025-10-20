@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 // (คุณสามารถลบ main() และ MyApp() ออกได้ หากนำไปรวมกับโปรเจกต์เดิม)
 
 class ChangePasswordScreen extends StatelessWidget {
-  const ChangePasswordScreen({super.key});
+  const ChangePasswordScreen({Key? key}) : super(key: key);
 
   // กำหนดสีเหลืองหลักที่ใช้ในแอป
   static const Color primaryYellow = Color(0xFFFDE100);

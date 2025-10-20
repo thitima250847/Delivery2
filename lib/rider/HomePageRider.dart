@@ -7,7 +7,7 @@ import 'trackingscreen.dart'; // ตรวจสอบ path ของไฟล�
 
 // เปลี่ยนจาก StatelessWidget เป็น StatefulWidget เพื่อให้มี StreamBuilder ได้
 class HomePageRider extends StatefulWidget {
-  const HomePageRider({super.key, this.name = 'Tester'});
+  const HomePageRider({Key? key, this.name = 'Tester'}) : super(key: key);
   final String name;
 
   @override

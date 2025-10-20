@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io'; // Import for File class
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,7 +11,6 @@ import 'package:image_picker/image_picker.dart' as xpicker;
 import 'package:cloudinary_public/cloudinary_public.dart';
 
 import 'package:delivery/rider/HomePageRider.dart';
-
 
 class TrackingScreen extends StatefulWidget {
   final String packageId;
@@ -58,7 +57,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   // หลักฐานรูป
   String? _proofPhoto1Url;
   String? _proofPhoto2Url;
-  xpicker.XFile? _localProofPhoto1; // <-- ตัวแปรใหม่สำหรับเก็บรูปที่ถ่ายชั่วคราว
+  xpicker.XFile?
+      _localProofPhoto1; // <-- ตัวแปรใหม่สำหรับเก็บรูปที่ถ่ายชั่วคราว
 
   @override
   void initState() {
@@ -72,7 +72,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     _positionStreamSubscription?.cancel();
     super.dispose();
   }
-  
+
   // ----- LOCATION (เหมือนเดิม) -----
   Future<void> _updateRiderLocationInFirestore(latlong.LatLng location) async {
     try {
@@ -116,13 +116,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
         Geolocator.getPositionStream(locationSettings: locationSettings)
             .listen((Position position) {
       if (!mounted) return;
-      final newLocation =
-          latlong.LatLng(position.latitude, position.longitude);
+      final newLocation = latlong.LatLng(position.latitude, position.longitude);
       _updateRiderLocationInFirestore(newLocation);
       setState(() {
         _currentRiderLocation = newLocation;
-        _mapController.move(
-            _currentRiderLocation, _mapController.camera.zoom);
+        _mapController.move(_currentRiderLocation, _mapController.camera.zoom);
       });
     });
   }
@@ -143,8 +141,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
         _proofPhoto1Url = data['proof_image_url_1'];
         _proofPhoto2Url = data['proof_image_url_2'];
 
-        final senderInfo =
-            (data['sender_info'] as Map<String, dynamic>?) ?? {};
+        final senderInfo = (data['sender_info'] as Map<String, dynamic>?) ?? {};
         final receiverInfo =
             (data['receiver_info'] as Map<String, dynamic>?) ?? {};
 
@@ -172,9 +169,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     });
   }
 
-  // ----- PHOTO & STATUS UPDATE (ส่วนที่แก้ไข) -----
-
-  // 1. ฟังก์ชันสำหรับ "ถ่ายรูป" ณ จุดรับ (ยังไม่อัปโหลด)
+  // ----- PHOTO & STATUS UPDATE (เหมือนเดิม) -----
   Future<void> _takePhotoForPickup() async {
     final xpicker.XFile? imageFile = await _picker.pickImage(
       source: xpicker.ImageSource.camera,
@@ -186,7 +181,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     });
   }
 
-  // 2. ฟังก์ชันสำหรับ "ถ่ายและอัปโหลด" ณ จุดส่ง
   Future<void> _takeAndUploadPhotoForDropoff() async {
     final xpicker.XFile? imageFile = await _picker.pickImage(
       source: xpicker.ImageSource.camera,
@@ -207,52 +201,52 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปโหลดรูปที่ 2 สำเร็จ'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('อัปโหลดรูปที่ 2 สำเร็จ'),
+              backgroundColor: Colors.green),
         );
       }
     } on CloudinaryException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('อัปโหลดรูปภาพล้มเหลว: ${e.message}'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('อัปโหลดรูปภาพล้มเหลว: ${e.message}'),
+              backgroundColor: Colors.red),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-  
-  // 3. ฟังก์ชันอัปเดตสถานะ (ปรับปรุงใหม่ทั้งหมด)
+
   Future<void> _updateStatus(String newStatus) async {
     setState(() => _isLoading = true);
     try {
       if (newStatus == 'on_delivery') {
-        // --- ขั้นตอนการรับสินค้า ---
         if (_localProofPhoto1 == null) {
           throw Exception('กรุณาถ่ายรูปยืนยันการรับสินค้าก่อน');
         }
-        // 1. อัปโหลดรูปที่ถ่ายไว้
         final res = await cloudinary.uploadFile(
           CloudinaryFile.fromFile(_localProofPhoto1!.path),
         );
         final imageUrl = res.secureUrl;
 
-        // 2. อัปเดตสถานะและ URL รูปภาพใน Firestore พร้อมกัน
         await FirebaseFirestore.instance
             .collection('packages')
             .doc(widget.packageId)
             .update({
-              'status': newStatus,
-              'proof_image_url_1': imageUrl,
-            });
-        
+          'status': newStatus,
+          'proof_image_url_1': imageUrl,
+        });
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('รับสินค้าเรียบร้อย เริ่มเดินทาง!'), backgroundColor: Colors.green),
+            const SnackBar(
+                content: Text('รับสินค้าเรียบร้อย เริ่มเดินทาง!'),
+                backgroundColor: Colors.green),
           );
         }
-
       } else if (newStatus == 'delivered') {
-        // --- ขั้นตอนการส่งสินค้า ---
         if (_proofPhoto2Url == null) {
           throw Exception('กรุณาถ่ายรูปยืนยันการส่งสินค้าก่อน');
         }
@@ -260,13 +254,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
             .collection('packages')
             .doc(widget.packageId)
             .update({
-              'status': newStatus,
-              'delivered_at': Timestamp.now(),
-            });
+          'status': newStatus,
+          'delivered_at': Timestamp.now(),
+        });
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ส่งสินค้าสำเร็จ!'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('ส่งสินค้าสำเร็จ!'), backgroundColor: Colors.green),
         );
         await Future.delayed(const Duration(milliseconds: 500));
         Navigator.of(context).pushAndRemoveUntil(
@@ -277,8 +272,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     } catch (e) {
       if (mounted) {
         final errorMessage = e.toString().contains("Exception:")
-          ? e.toString().replaceFirst("Exception: ", "")
-          : 'เกิดข้อผิดพลาด: $e';
+            ? e.toString().replaceFirst("Exception: ", "")
+            : 'เกิดข้อผิดพลาด: $e';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
         );
@@ -343,11 +338,91 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ----- Header & Stepper (เหมือนเดิม) -----
+  // ----- Map (ปรับปรุง) -----
+  Widget _buildMap() {
+    // สร้างลิสต์ของ Markers
+    List<Marker> markers = [];
+
+    // 1. เพิ่ม Marker ของไรเดอร์เสมอ
+    if (_currentRiderLocation.latitude != 0.0) {
+      markers.add(
+        Marker(
+          point: _currentRiderLocation,
+          width: 40,
+          height: 40,
+          child: const Icon(
+            Icons.two_wheeler,
+            color: Colors.blue,
+            size: 30,
+          ),
+        ),
+      );
+    }
+
+    // 2. เช็คก่อนว่ามีพิกัดจุดรับหรือไม่ ถ้ามีถึงจะเพิ่ม Marker
+    if (_pickupLocation.latitude != 0.0 && _pickupLocation.longitude != 0.0) {
+      markers.add(
+        Marker(
+          point: _pickupLocation,
+          width: 40,
+          height: 40,
+          child: const Icon(
+            Icons.location_on,
+            color: Colors.red,
+            size: 40,
+          ),
+        ),
+      );
+    }
+
+    // 3. เช็คก่อนว่ามีพิกัดจุดส่งหรือไม่ ถ้ามีถึงจะเพิ่ม Marker (ถูกต้องอยู่แล้ว)
+    if (_dropoffLocation.latitude != 0.0 && _dropoffLocation.longitude != 0.0) {
+      markers.add(
+        Marker(
+          point: _dropoffLocation,
+          width: 40,
+          height: 40,
+          child: const Icon(
+            Icons.location_on,
+            color: darkGreenText,
+            size: 40,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15.0),
+        child: SizedBox(
+          height: 250,
+          child: FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentRiderLocation.latitude != 0.0
+                  ? _currentRiderLocation
+                  : const latlong.LatLng(
+                      16.4339, 102.8230), // Default Mahasarakham
+              initialZoom: 15.0,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              ),
+              // ใช้ Markers ที่สร้างและกรองแล้ว
+              MarkerLayer(markers: markers),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- (Widget ที่เหลือเหมือนเดิม) ---
   Widget _buildHeader(int activeStep) {
     bool isActive(int step) => activeStep == step;
     bool connectorOnBefore(int step) => activeStep > step;
-
     return Container(
       padding: const EdgeInsets.only(top: 50, bottom: 20),
       decoration: const BoxDecoration(color: kYellow),
@@ -361,13 +436,17 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   children: [
-                    _buildStepItem(Icons.hourglass_top, "รอรับออเดอร์", isActive(1)),
+                    _buildStepItem(
+                        Icons.hourglass_top, "รอรับออเดอร์", isActive(1)),
                     _buildStepConnector(connectorOnBefore(1)),
-                    _buildStepItem(Icons.assignment_turned_in, "ไรเดอร์รับงาน", isActive(2)),
+                    _buildStepItem(Icons.assignment_turned_in, "ไรเดอร์รับงาน",
+                        isActive(2)),
                     _buildStepConnector(connectorOnBefore(2)),
-                    _buildStepItem(Icons.delivery_dining, "กำลังเดินทาง", isActive(3)),
+                    _buildStepItem(
+                        Icons.delivery_dining, "กำลังเดินทาง", isActive(3)),
                     _buildStepConnector(connectorOnBefore(3)),
-                    _buildStepItem(Icons.check_circle, "ส่งเสร็จสิ้น", isActive(4)),
+                    _buildStepItem(
+                        Icons.check_circle, "ส่งเสร็จสิ้น", isActive(4)),
                   ],
                 ),
               ),
@@ -479,74 +558,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ----- Map (เหมือนเดิม) -----
-  Widget _buildMap() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15.0),
-        child: SizedBox(
-          height: 250,
-          child: FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _currentRiderLocation,
-              initialZoom: 15.0,
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _currentRiderLocation,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(
-                      Icons.two_wheeler,
-                      color: Colors.blue,
-                      size: 30,
-                    ),
-                  ),
-                  Marker(
-                    point: _pickupLocation,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.red,
-                      size: 40,
-                    ),
-                  ),
-                  Marker(
-                    point: _dropoffLocation,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: darkGreenText,
-                      size: 40,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ----- Tabs (เหมือนเดิม) -----
   Widget _buildTabBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
-          _buildTabItem("สถานะกำลังส่ง", 0, _currentPackageStatus != 'delivered'),
+          _buildTabItem(
+              "สถานะกำลังส่ง", 0, _currentPackageStatus != 'delivered'),
           const SizedBox(width: 10),
-          _buildTabItem("นำส่งสินค้าแล้ว", 1, _currentPackageStatus == 'delivered'),
+          _buildTabItem(
+              "นำส่งสินค้าแล้ว", 1, _currentPackageStatus == 'delivered'),
         ],
       ),
     );
@@ -589,8 +610,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       );
     } else {
       return Container(
-        padding:
-            const EdgeInsets.symmetric(vertical: 40, horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16.0),
         child: Center(
           child: Column(
             children: [
@@ -636,10 +656,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ----- Actions by status (แก้ไข) -----
   Widget _buildDeliveryAction() {
     if (_currentPackageStatus == 'accepted') {
-      final canPress = _localProofPhoto1 != null; // เช็คจากรูปในเครื่อง
+      final canPress = _localProofPhoto1 != null;
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: SizedBox(
@@ -662,7 +681,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
         ),
       );
     } else if (_currentPackageStatus == 'on_delivery') {
-      final canPress = _proofPhoto2Url != null; // เช็คจาก URL รูปที่ 2
+      final canPress = _proofPhoto2Url != null;
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: SizedBox(
@@ -688,27 +707,27 @@ class _TrackingScreenState extends State<TrackingScreen> {
     return const SizedBox.shrink();
   }
 
-  // ----- Photo Uploaders (แก้ไข) -----
   Widget _buildPhotoUploaders() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         children: [
-          // รูปที่ 1 (จุดรับสินค้า)
           _buildPhotoPlaceholder(
-            localImageFile: _localProofPhoto1, // **ส่งไฟล์รูปในเครื่องไปแสดง**
+            localImageFile: _localProofPhoto1,
             imageUrl: _proofPhoto1Url,
             label: "ถ่ายรูป ณ จุดรับ",
-            onCameraTap: _takePhotoForPickup, // **เรียกฟังก์ชันถ่ายรูป (ยังไม่อัปโหลด)**
-            canTap: _proofPhoto1Url == null && _localProofPhoto1 == null && _currentPackageStatus == 'accepted',
+            onCameraTap: _takePhotoForPickup,
+            canTap: _proofPhoto1Url == null &&
+                _localProofPhoto1 == null &&
+                _currentPackageStatus == 'accepted',
           ),
           const SizedBox(width: 16),
-          // รูปที่ 2 (จุดส่งสินค้า)
           _buildPhotoPlaceholder(
             imageUrl: _proofPhoto2Url,
             label: "ถ่ายรูป ณ จุดส่ง",
-            onCameraTap: _takeAndUploadPhotoForDropoff, // **เรียกฟังก์ชันถ่ายและอัปโหลด**
-            canTap: _proofPhoto2Url == null && _currentPackageStatus == 'on_delivery',
+            onCameraTap: _takeAndUploadPhotoForDropoff,
+            canTap: _proofPhoto2Url == null &&
+                _currentPackageStatus == 'on_delivery',
           ),
         ],
       ),
@@ -717,7 +736,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   Widget _buildPhotoPlaceholder({
     String? imageUrl,
-    xpicker.XFile? localImageFile, // **รับไฟล์รูปในเครื่อง**
+    xpicker.XFile? localImageFile,
     required String label,
     required VoidCallback onCameraTap,
     required bool canTap,
@@ -734,7 +753,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             border: Border.all(color: Colors.grey.shade300),
             image: localImageFile != null
                 ? DecorationImage(
-                    image: FileImage(File(localImageFile.path)), // **แสดงรูปจากไฟล์**
+                    image: FileImage(File(localImageFile.path)),
                     fit: BoxFit.cover)
                 : imageUrl != null
                     ? DecorationImage(
@@ -760,7 +779,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ----- Address & Product Cards (เหมือนเดิม) -----
   Widget _buildAddressCard() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -814,11 +832,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 13)),
               Text("$labelPrefix : $name",
-                  style:
-                      const TextStyle(fontSize: 12, color: Colors.black54)),
+                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
               Text("เบอร์โทรศัพท์ : $phone",
-                  style:
-                      const TextStyle(fontSize: 12, color: Colors.black54)),
+                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
             ],
           ),
         ),
@@ -842,8 +858,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => 
-                  const Icon(Icons.image_not_supported, size: 80, color: Colors.grey),
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.image_not_supported,
+                    size: 80,
+                    color: Colors.grey),
               ),
             ),
             const SizedBox(width: 16),
@@ -856,8 +874,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 4),
                   Text(_productDescription,
-                      style: const TextStyle(
-                          fontSize: 13, color: Colors.black54)),
+                      style:
+                          const TextStyle(fontSize: 13, color: Colors.black54)),
                 ],
               ),
             ),

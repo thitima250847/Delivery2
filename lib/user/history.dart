@@ -21,7 +21,8 @@ class _HistoryPageState extends State<HistoryPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12.0),
               decoration: BoxDecoration(
@@ -44,49 +45,41 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
           ),
-          
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              // ***** 1. แก้ไข Query: ดึงข้อมูลทั้งหมดของผู้ใช้ (ไม่ต้องกรอง status) *****
               stream: FirebaseFirestore.instance
                   .collection('packages')
-                  .where('sender_user_id', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                  .where('sender_user_id',
+                      isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                  .where('status', isEqualTo: 'delivered')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return const Center(child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'));
+                  return const Center(
+                      child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'));
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('ยังไม่มีประวัติการส่งสินค้า'));
+                  return const Center(
+                      child: Text('ยังไม่มีประวัติการส่งสินค้า'));
                 }
-
-                // ดึงข้อมูลทั้งหมด
-                final allPackages = snapshot.data!.docs;
-
-                // ***** 2. เพิ่มส่วนนี้: กรองข้อมูลในแอปเอง *****
-                final completedPackages = allPackages.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  // เอาเฉพาะรายการที่ status เป็น 'completed'
-                  return data['status'] == 'completed';
-                }).toList();
-                // ****************************************
-
-                if (completedPackages.isEmpty) {
-                  return const Center(child: Text('ยังไม่มีประวัติการส่งสินค้า'));
-                }
-
-                // ***** 3. ใช้ completedPackages ที่กรองแล้วมาสร้าง ListView *****
+                final completedPackages = snapshot.data!.docs;
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   itemCount: completedPackages.length,
                   itemBuilder: (context, index) {
-                    final packageData = completedPackages[index].data() as Map<String, dynamic>;
+                    final packageDoc = completedPackages[index];
+                    final packageData =
+                        packageDoc.data() as Map<String, dynamic>;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 16.0),
-                      child: _buildHistoryCard(context, packageData: packageData),
+                      child: _buildHistoryCard(
+                        context,
+                        packageId: packageDoc.id,
+                        packageData: packageData,
+                      ),
                     );
                   },
                 );
@@ -99,22 +92,21 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  // --- (Widget อื่นๆ ไม่มีการเปลี่ยนแปลง) ---
   Widget _buildHistoryCard(
     BuildContext context, {
+    required String packageId,
     required Map<String, dynamic> packageData,
   }) {
-    final senderInfo = packageData['sender_info'] as Map<String, dynamic>? ?? {};
-    final receiverInfo = packageData['receiver_info'] as Map<String, dynamic>? ?? {};
-
+    final senderInfo =
+        packageData['sender_info'] as Map<String, dynamic>? ?? {};
+    final receiverInfo =
+        packageData['receiver_info'] as Map<String, dynamic>? ?? {};
     final senderLocation = senderInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้ส่ง';
     final senderName = senderInfo['name'] ?? 'ไม่ระบุชื่อผู้ส่ง';
     final senderPhone = senderInfo['phone'] ?? 'ไม่มีเบอร์โทร';
-
     final recipientLocation = receiverInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้รับ';
     final recipientName = receiverInfo['name'] ?? 'ไม่ระบุชื่อผู้รับ';
     final recipientPhone = receiverInfo['phone'] ?? 'ไม่มีเบอร์โทร';
-
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -173,7 +165,8 @@ class _HistoryPageState extends State<HistoryPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const DetailPage(packageId: '',),
+                          builder: (context) =>
+                              DetailPage(packageId: packageId),
                         ),
                       );
                     },
@@ -324,7 +317,6 @@ class _HistoryPageState extends State<HistoryPage> {
             );
             break;
           case 1:
-            // หน้าปัจจุบัน ไม่ต้องทำอะไร
             break;
           case 2:
             Navigator.pushReplacement(
@@ -349,7 +341,6 @@ class _HistoryPageState extends State<HistoryPage> {
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});
-
   @override
   Path getClip(Size size) {
     final path = Path();

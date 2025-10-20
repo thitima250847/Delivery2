@@ -62,7 +62,11 @@ class _HomePageRiderState extends State<HomePageRider> {
     }
   }
 
-  // ฟังก์ชันสำหรับรับ Order (แก้ไข)
+ // HomePageRider.dart
+
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
+
+  // ฟังก์ชันสำหรับรับ Order (ฉบับแก้ไข)
   Future<void> _acceptOrder(String packageId) async {
     try {
       final riderId = FirebaseAuth.instance.currentUser?.uid;
@@ -70,7 +74,7 @@ class _HomePageRiderState extends State<HomePageRider> {
         throw Exception("ไม่สามารถระบุตัวตนไรเดอร์ได้");
       }
 
-      // ตรวจสอบว่า Rider มีงานที่กำลังทำอยู่หรือไม่
+      // 1. ตรวจสอบว่า Rider มีงานที่กำลังทำอยู่หรือไม่
       final ongoingPackages = await FirebaseFirestore.instance
           .collection('packages')
           .where('rider_id', isEqualTo: riderId)
@@ -84,20 +88,31 @@ class _HomePageRiderState extends State<HomePageRider> {
         );
       }
 
-      // (2) ถ้าไม่มีงานค้าง ให้ดำเนินการรับงาน
+      // 2. änner เพิ่ม: ดึงข้อมูลป้ายทะเบียนของไรเดอร์
+      final riderDoc = await FirebaseFirestore.instance.collection('riders').doc(riderId).get();
+      if (!riderDoc.exists) {
+        throw Exception('ไม่พบโปรไฟล์ของไรเดอร์');
+      }
+      final riderPlate = riderDoc.data()?['license_plate'] ?? 'N/A';
+      // ------------------------------------
+
+      // 3. änner เพิ่ม: อัปเดต 'rider_plate' ลงใน package
       await FirebaseFirestore.instance
           .collection('packages')
           .doc(packageId)
-          .update({'status': 'accepted', 'rider_id': riderId});
+          .update({
+            'status': 'accepted', 
+            'rider_id': riderId,
+            'rider_plate': riderPlate, // <-- บันทึกป้ายทะเบียนตรงนี้
+          });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('รับงานสำเร็จ! กำลังนำทางไปหน้าติดตาม'), // แก้ข้อความ
+            content: Text('รับงานสำเร็จ! กำลังนำทางไปหน้าติดตาม'),
             backgroundColor: Colors.green,
           ),
         );
-        // *** เพิ่ม: นำทางไปหน้า TrackingScreen ทันทีและแทนที่หน้าปัจจุบัน ***
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -107,7 +122,6 @@ class _HomePageRiderState extends State<HomePageRider> {
       }
     } catch (e) {
       if (mounted) {
-        // แสดงข้อความที่ถูกกำหนดเอง (ถ้าเป็น String)
         final errorMessage = e.toString().contains("Exception:")
             ? e.toString().replaceFirst("Exception: ", "")
             : 'เกิดข้อผิดพลาดในการรับงาน: $e';
@@ -118,6 +132,8 @@ class _HomePageRiderState extends State<HomePageRider> {
       }
     }
   }
+
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
 
   @override
   Widget build(BuildContext context) {

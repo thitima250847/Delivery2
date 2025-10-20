@@ -127,7 +127,19 @@ class _SendItemPageState extends State<SendItemPage> {
   // =================================================================
   // === ฟังก์ชัน `_saveAllData` (แก้ไขกลับเป็นวิธีที่ 1: เขียนตรง) ===
   // =================================================================
-  Future<void> _saveAllData() async {
+ // SendItemPage.dart
+
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
+
+ // SendItemPage.dart
+
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
+
+// SendItemPage.dart
+
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
+
+ Future<void> _saveAllData() async {
     final description = _descriptionController.text.trim();
     if (_itemImageBytes == null || description.isEmpty) {
       _showSnack('กรุณาเลือกรูปภาพและระบุรายละเอียดสินค้าให้ครบถ้วน');
@@ -140,19 +152,40 @@ class _SendItemPageState extends State<SendItemPage> {
     setState(() => _isSaving = true);
 
     try {
-      // 1. อัปโหลดรูปสินค้าไป Cloudinary
       final String? itemImageUrl =
           await _uploadItemImageToCloudinary(_itemImageBytes!);
       if (itemImageUrl == null) {
         throw Exception("ไม่สามารถอัปโหลดรูปภาพได้");
       }
 
-      // 2. เตรียมข้อมูลที่อยู่ผู้ส่ง
-      final senderAddress = ((_senderData?['addresses'] as List<dynamic>?)?.isNotEmpty ?? false)
-          ? (_senderData!['addresses'][0] as Map<String, dynamic>)['address_text'] ?? 'ไม่ระบุ'
-          : 'ไม่ระบุ';
+      // --- ดึงข้อมูลที่อยู่และพิกัดของผู้ส่ง ---
+      final senderAddresses = _senderData?['addresses'] as List<dynamic>?;
+      String senderAddress = 'ไม่ระบุ';
+      double senderLat = 0.0;
+      double senderLng = 0.0;
+      if (senderAddresses != null && senderAddresses.isNotEmpty) {
+        final firstAddress = senderAddresses[0] as Map<String, dynamic>;
+        final gpsData = firstAddress['gps'] as Map<String, dynamic>?; // ดึง map gps ออกมาก่อน
+        senderAddress = firstAddress['address_text'] ?? 'ไม่ระบุ';
+        // änner แก้ไข: เข้าไปดึงค่าจากใน gpsData
+        senderLat = (gpsData?['lat'] as num?)?.toDouble() ?? 0.0;
+        senderLng = (gpsData?['lng'] as num?)?.toDouble() ?? 0.0;
+      }
+      
+      // --- ดึงข้อมูลที่อยู่และพิกัดของผู้รับ ---
+      final recipientAddresses = widget.recipientData['addresses'] as List<dynamic>?;
+      String recipientAddress = _recipientAddress;
+      double recipientLat = 0.0;
+      double recipientLng = 0.0;
+      if (recipientAddresses != null && recipientAddresses.isNotEmpty) {
+          final firstAddress = recipientAddresses[0] as Map<String, dynamic>;
+          final gpsData = firstAddress['gps'] as Map<String, dynamic>?; // ดึง map gps ออกมาก่อน
+          recipientAddress = firstAddress['address_text'] ?? _recipientAddress;
+          // änner แก้ไข: เข้าไปดึงค่าจากใน gpsData
+          recipientLat = (gpsData?['lat'] as num?)?.toDouble() ?? 0.0;
+          recipientLng = (gpsData?['lng'] as num?)?.toDouble() ?? 0.0;
+      }
 
-      // 3. เตรียมข้อมูลทั้งหมดที่จะบันทึกลง Firestore
       final packageData = <String, dynamic>{
         'status': 'pending',
         'proof_image_url': itemImageUrl,
@@ -165,18 +198,20 @@ class _SendItemPageState extends State<SendItemPage> {
           'name': _senderData?['name'] ?? 'ไม่ระบุ',
           'phone': _senderData?['phone_number'] ?? 'ไม่ระบุ',
           'address': senderAddress,
+          'lat': senderLat,
+          'lng': senderLng,
         },
         'receiver_info': {
           'name': _recipientName,
           'phone': _recipientPhone,
-          'address': _recipientAddress,
+          'address': recipientAddress,
+          'lat': recipientLat,
+          'lng': recipientLng,
         },
       };
 
-      // 4. บันทึกข้อมูลลง Firestore ใน Collection 'packages' โดยตรง
       await FirebaseFirestore.instance.collection('packages').add(packageData);
 
-      // 5. เมื่อสำเร็จ ให้แสดงข้อความและไปหน้าถัดไป
       _showSnack('สร้างรายการส่งสินค้าสำเร็จ!', isSuccess: true);
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
@@ -192,6 +227,8 @@ class _SendItemPageState extends State<SendItemPage> {
     }
   }
 
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
+// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
 
   @override
   Widget build(BuildContext context) {

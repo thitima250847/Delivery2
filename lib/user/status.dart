@@ -4,14 +4,10 @@ import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
+// ***** ส่วนของคลาส StatusScreen (StatefulWidget ที่ถูกต้อง) *****
 class StatusScreen extends StatefulWidget {
   final String packageId; // รับ ID งานที่ต้องการติดตาม
   const StatusScreen({super.key, required this.packageId}); 
-// vvv เปลี่ยนชื่อคลาสเป็น StatusScreen
-class StatusScreen extends StatelessWidget {
-  // vvv อัปเดต Constructor
-  const StatusScreen({super.key});
 
   @override
   State<StatusScreen> createState() => _StatusScreenState();
@@ -19,28 +15,23 @@ class StatusScreen extends StatelessWidget {
 
 class _StatusScreenState extends State<StatusScreen> {
   static const Color primaryYellow = Color(0xFFFDE100);
-  static const Color darkGreen = Color(0xFF98C21D); // สีเขียวสำหรับ Active
-  static const Color lightGrey = Color(0xFF9E9E9E); // สีเทาสำหรับ Inactive
+  static const Color darkGreen = Color(0xFF98C21D); 
+  static const Color lightGrey = Color(0xFF9E9E9E); 
 
-  // ข้อมูลสถานะที่ดึงจาก Firestore (ต้องตรงกับ field ใน TrackingScreen.dart)
   String _currentPackageStatus = 'pending'; 
   
-  // ข้อมูลไรเดอร์ที่ดึงมาแสดงผล
   String _riderName = 'กำลังโหลด...';
   String _riderPhone = 'กำลังโหลด...';
   String _riderPlate = 'กำลังโหลด...';
   String _riderImageUrl = 'https://via.placeholder.com/60?text=Rider'; // Fallback image
   
-  // ข้อมูลสินค้า
   String _productImageUrl = "https://via.placeholder.com/80?text=Product";
   String _productDescription = 'กำลังโหลดรายละเอียด...';
   
-  // ข้อมูลยืนยันการส่งสินค้า
   String? _proofPhoto1Url;
   String? _proofPhoto2Url;
 
   int _navIndex = 0; // ตัวแปรสำหรับ Bottom Navigation
-
 
   @override
   void initState() {
@@ -71,11 +62,10 @@ class _StatusScreenState extends State<StatusScreen> {
         String tempRiderName = 'รอไรเดอร์รับงาน';
         String tempRiderPhone = 'รอไรเดอร์รับงาน';
         String tempRiderPlate = 'รอไรเดอร์รับงาน';
-        String tempRiderImageUrl = 'https://i.imgur.com/gX3tYlI.png';
+        String tempRiderImageUrl = 'https://via.placeholder.com/60?text=Rider';
         
         if (data['rider_id'] != null && data['status'] != 'pending') {
             tempRiderName = 'Rider: ${data['rider_id'].substring(0, 6)}...';
-            // ในการใช้งานจริง: ต้องดึงข้อมูลเบอร์โทรและทะเบียนรถจาก Collection 'users'
             tempRiderPhone = data['rider_phone'] ?? '09x-xxx-xxxx'; 
             tempRiderPlate = data['rider_plate'] ?? '7กxxx-xxx'; 
         }
@@ -479,3 +469,4 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 }
+

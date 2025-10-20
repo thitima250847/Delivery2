@@ -99,6 +99,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
           ),
         ),
       ),
+      // *** แก้ไข: bottomNavigationBar ต้องเป็น parameter ของ Scaffold ***
       bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
@@ -238,14 +239,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
-
-              Navigator.push(context, MaterialPageRoute(builder: (_) => DetailPage()));
-              // vvvv 2. [สำคัญ] ลองลบ const ถ้า DetailPage ไม่มี const constructor vvvv
+              // *** แก้ไข Navigation: ใช้ packageId จริง ***
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => DetailPage(packageId: '',),
-                ), // <-- ลองลบ const
+                  builder: (context) => DetailPage(packageId: widget.packageId),
+                ), 
               );
               print('กดปุ่ม รายละเอียด');
             },
@@ -295,7 +294,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildStepItem(
-                title: 'รอไรเดอร์รับสินค้า',
+                title: 'รอรับออเดอร์สินค้า',
                 iconData: Icons.hourglass_empty,
                 stepIndex: 0,
                 currentStep: currentStep,
@@ -417,3 +416,4 @@ class CustomAppBarClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => true;
 }
+

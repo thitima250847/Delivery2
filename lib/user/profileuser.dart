@@ -20,9 +20,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // State variables
   bool _isLoading = true;
   Map<String, dynamic>? _userData;
-  List<dynamic> _userAddresses = [];
+  List<dynamic> _userAddresses = []; // List to hold addresses
 
-  bool _isAddingAddress = false;
+  // นำ _isAddingAddress กลับมาใช้ใหม่
+  bool _isAddingAddress = false; 
   final TextEditingController _newAddressController = TextEditingController();
 
   @override
@@ -51,7 +52,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _fetchUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // Handle not logged in case
       setState(() => _isLoading = false);
       return;
     }
@@ -61,7 +61,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (doc.exists && mounted) {
         setState(() {
           _userData = doc.data();
-          _userAddresses = _userData?['addresses'] ?? [];
+          // ใช้การ Cast และ Null-Coalescing เพื่อให้ _userAddresses เป็น List เสมอ
+          _userAddresses = (_userData?['addresses'] as List<dynamic>?) ?? [];
           _isLoading = false;
         });
       } else {
@@ -75,20 +76,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   
   // --- 2. Navigate to map and handle result ---
   Future<void> _selectAddressFromMap() async {
-    // Navigate to the map picker screen
+    // 1. นำทางไปหน้า MapPickerScreen
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const MapPickerScreen()),
+      MaterialPageRoute(builder: (context) => const MapPickerScreen()), 
     );
 
-    // Handle the result from the map picker
+    // 2. จัดการผลลัพธ์จากแผนที่
     if (result != null && result is Map) {
       final latlong.LatLng? pickedLocation = result['location'];
       final String? pickedAddress = result['address'];
 
       if (pickedLocation != null && pickedAddress != null) {
-        _newAddressController.text = pickedAddress;
-        // Automatically save the new address
+        // 3. บันทึกที่อยู่ใหม่ทันที (บันทึกอัตโนมัติ)
         _saveNewAddress(pickedAddress, pickedLocation);
       }
     }
@@ -103,6 +103,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return;
     }
 
+    // สร้าง Map ข้อมูลที่อยู่ใหม่
     final newAddress = {
       'address_text': addressText,
       'gps': {'lat': location.latitude, 'lng': location.longitude},
@@ -110,16 +111,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     try {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'addresses': FieldValue.arrayUnion([newAddress])
+        'addresses': FieldValue.arrayUnion([newAddress]) // เพิ่มลงใน List
       });
       _showSnack("บันทึกที่อยู่ใหม่สำเร็จ!", isSuccess: true);
       
-      // Hide the input field and refresh data
-      setState(() {
-        _isAddingAddress = false;
-        _newAddressController.clear();
-      });
-      _fetchUserData(); // Refresh user data to show the new address
+      // Clear the input field and refresh data
+      if (mounted) {
+        setState(() {
+          // ซ่อนช่อง input ว่างทันทีหลังบันทึก
+          _isAddingAddress = false; 
+          _newAddressController.clear();
+        });
+      }
+      
+      // ดึงข้อมูลใหม่มาแสดงทันที
+      _fetchUserData(); 
 
     } catch (e) {
       _showSnack("เกิดข้อผิดพลาดในการบันทึกที่อยู่");
@@ -143,7 +149,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         _buildProfilePicture(_userData?['profile_image']),
                         const SizedBox(height: 24.0),
 
-                        // --- 4. Display real data ---
+                        // --- 4. Display real data (Non-address fields) ---
                         _buildInfoField(icon: Icons.person_outline, text: _userData?['name'] ?? 'ไม่มีชื่อ'),
                         const SizedBox(height: 12.0),
                         _buildInfoField(icon: Icons.mail_outline, text: _userData?['user_email'] ?? 'ไม่มีอีเมล'),
@@ -155,48 +161,68 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           text: "********",
                           trailingIcon: Icons.visibility_outlined,
                         ),
+                        const SizedBox(height: 24.0), 
+
+                        // --- Address Header and Plus Button ---
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'ที่อยู่ทั้งหมด', 
+                              style: TextStyle(
+                                fontSize: 16, 
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            // --- Plus button (Always visible) ---
+                            // กดแล้วเปลี่ยนสถานะ _isAddingAddress เป็น true เพื่อแสดงช่อง Input ว่าง
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  // ถ้าช่องว่างยังไม่แสดง ให้แสดงขึ้นมา
+                                  _isAddingAddress = true; 
+                                });
+                              },
+                              child: const Icon(
+                                Icons.add_circle, 
+                                color: primaryYellow, 
+                                size: 30
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 12.0),
-
-                        // --- 5. Display list of addresses ---
-                        ..._userAddresses.map((address) {
-                           final addressText = (address as Map)['address_text'] ?? 'ที่อยู่ไม่ถูกต้อง';
-                           return Padding(
-                             padding: const EdgeInsets.only(bottom: 12.0),
-                             child: _buildInfoField(
-                               icon: Icons.location_on_outlined,
-                               text: addressText,
-                             ),
-                           );
-                        }).toList(),
-
-                        // --- 6. Show/Hide new address field ---
+                        
+                        // --- 5. New Address Input Field (ทำหน้าที่เป็นปุ่มกด) ---
+                        // แสดงช่อง Input ว่าง ต่อเมื่อกดปุ่ม + เท่านั้น
                         if (_isAddingAddress)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12.0),
                             child: _buildInfoField(
                               icon: Icons.location_on_outlined,
-                              text: "คลิกเพื่อเลือกที่อยู่ใหม่",
+                              text: "กดเพื่อเพิ่มที่อยู่ใหม่", 
                               isButton: true,
-                              controller: _newAddressController,
-                              onTap: _selectAddressFromMap, // Assign the function here
+                              onTap: _selectAddressFromMap, // **เมื่อกดช่องนี้ จะเด้งไปหน้า Maps**
+                              borderColor: primaryYellow, 
                             ),
                           ),
                         
+                        // --- 6. Display list of saved addresses ---
+                        // แสดงที่อยู่ที่บันทึกไว้ทั้งหมด
+                        ..._userAddresses.map((address) {
+                            final addressMap = (address is Map) ? address : {};
+                            final addressText = addressMap['address_text'] ?? 'ที่อยู่ไม่ถูกต้อง';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: _buildInfoField(
+                                icon: Icons.location_on_outlined,
+                                text: addressText,
+                              ),
+                            );
+                        }).toList(),
+                        
                         const SizedBox(height: 24.0),
-
-                        // --- 7. Plus button to toggle address field ---
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _isAddingAddress = !_isAddingAddress;
-                            });
-                          },
-                          child: Icon(
-                            _isAddingAddress ? Icons.remove : Icons.add, 
-                            color: Colors.black, 
-                            size: 30
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -204,8 +230,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  // --- Widget Builders ---
+
   PreferredSize _buildCustomAppBar(BuildContext context) {
-    // ... (This widget is correct, no changes needed)
     final double statusBarHeight = MediaQuery.of(context).padding.top;
     const double appBarHeight = 100;
 
@@ -277,6 +304,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  // ***** WIDGET ที่แก้ไขแล้ว *****
   Widget _buildInfoField({
     required IconData icon,
     required String text,
@@ -284,47 +312,41 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     bool isButton = false,
     VoidCallback? onTap,
     TextEditingController? controller,
+    Color? borderColor, 
   }) {
-    return InkWell(
-      onTap: isButton ? onTap : null,
-      child: IgnorePointer(
-        ignoring: !isButton,
-        child: TextFormField(
-          controller: controller,
-          readOnly: true,
-          decoration: InputDecoration(
-            hintText: text,
-            prefixIcon: Icon(icon, color: Colors.grey[700]),
-            suffixIcon: trailingIcon != null ? Icon(trailingIcon, color: Colors.grey[700]) : null,
-            filled: true,
-            fillColor: fieldBgColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15.0),
-              borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15.0),
-              borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
-            ),
-             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15.0),
-              borderSide: BorderSide(color: primaryYellow, width: 2.0),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-          ),
-          style: TextStyle(
-            fontSize: 15,
-            color: Colors.grey[800],
-            fontFamily: (text == "********") ? 'Roboto' : null,
-          ),
+    return TextFormField(
+      controller: controller ?? TextEditingController(text: text),
+      readOnly: true, 
+      onTap: isButton ? onTap : null, 
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: Colors.grey[700]),
+        suffixIcon: trailingIcon != null ? Icon(trailingIcon, color: Colors.grey[700]) : null,
+        filled: true,
+        fillColor: fieldBgColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15.0),
+          borderSide: BorderSide(color: borderColor ?? Colors.grey.shade300, width: 1.0),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15.0),
+          borderSide: BorderSide(color: borderColor ?? Colors.grey.shade300, width: 1.0),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15.0),
+          borderSide: BorderSide(color: primaryYellow, width: 2.0),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+      ),
+      style: TextStyle(
+        fontSize: 15,
+        color: Colors.grey[800],
+        fontFamily: (text == "********") ? 'Roboto' : null,
       ),
     );
   }
 }
 
 class CustomAppBarClipper extends CustomClipper<Path> {
-  // ... (This class is correct, no changes needed)
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});
 

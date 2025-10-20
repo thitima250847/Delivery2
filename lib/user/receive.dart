@@ -1,321 +1,345 @@
 import 'package:delivery/user/detail.dart';
+
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/search.dart';
-import 'package:delivery/user/status.dart'; // <-- Make sure StatusScreen is imported
+
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ***** 1. เพิ่ม Imports สำหรับหน้าที่จะไป *****
-// สำหรับปุ่ม 'ส่งสินค้า'
-import 'package:delivery/user/tracking.dart'; // สำหรับปุ่ม 'สินค้าที่ต้องรับ'
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Delivery App',
-      theme: ThemeData(
-        primarySwatch: Colors.yellow,
-        fontFamily: 'Kanit', // ตัวอย่างการใช้ฟอนต์ภาษาไทย (ถ้ามี)
-      ),
-      home: const ReceivePage(), // ตั้งค่าให้ ReceivePage เป็นหน้าแรก
-      debugShowCheckedModeBanner: false, // ปิดแถบ Debug Banner
-    );
-  }
-}
-
-class ReceivePage extends StatelessWidget {
+class ReceivePage extends StatefulWidget {
   const ReceivePage({super.key});
 
   @override
+  State<ReceivePage> createState() => _ReceivePageState();
+}
+
+class _ReceivePageState extends State<ReceivePage> {
+  @override
   Widget build(BuildContext context) {
-    // ***** 2. เปลี่ยนโครงสร้าง Body ใหม่ *****
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // สีพื้นหลังเดิม
-      body: SingleChildScrollView(
-        // ใช้ SingleChildScrollView คลุมทั้งหมด
-        child: Column(
-          children: [
-            // ***** 3. ใส่ Widget ส่วนหัวสีเหลือง (จาก DeliveryPage) *****
-            _buildTopSection(),
-
-            // ***** 4. ใส่ Widget ส่วนปุ่ม 3 ปุ่ม (จาก DeliveryPage) *****
-            _buildButtonSection(context),
-
-            // ***** 5. ใส่เนื้อหาเดิมของ ReceivePage *****
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 20.0,
-              ),
-              child: Column(
-                children: [
-                  _buildContentTitle(), // "รายการสินค้าที่ต้องรับ" title
-                  const SizedBox(height: 24),
-                  // Delivery card 1
-                  _buildDeliveryCard(
-                    context,
-                    senderLocation: 'หอพักอัครฉัตรแมนชั่น ตึกใหม่',
-                    senderName: 'sathima kanlayasai',
-                    recipientLocation: 'คณะวิทยาการสารสนเทศ',
-                    recipientName: 'Soduku',
-                  ),
-                  const SizedBox(height: 16),
-                  // Delivery card 2
-                  _buildDeliveryCard(
-                    context,
-                    senderLocation: 'หอพักอัครฉัตรแมนชั่น ตึกใหม่',
-                    senderName: 'sathima kanlayasai',
-                    recipientLocation: 'คณะวิทยาการสารสนเทศ',
-                    recipientName: 'Soduku',
-                  ),
-                  // --- ADDED GREEN BUTTON ---
-                  _buildSubmitButton(context),
-                  const SizedBox(
-                    height: 24,
-                  ), // Add some bottom padding if needed
-                ],
-              ),
+      backgroundColor: const Color(0xFFF5F5F5),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(100),
+        child: ClipPath(
+          clipper: CustomAppBarClipper(borderRadius: 30.0),
+          child: Container(
+            color: const Color(0xFFFDE428),
+            padding: const EdgeInsets.only(
+              top: 45,
+              left: 20,
+              right: 20,
+              bottom: 10,
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavigationBar(
-        context,
-      ), // ใช้ BottomNav เดิม
-    );
-  }
-
-  // ***** 6. Widget ใหม่: ส่วนบนของหน้า (จาก DeliveryPage) *****
-  // (แก้ไขให้ใช้ค่าคงที่ เพราะหน้านี้เป็น StatelessWidget)
-  Widget _buildTopSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFEE146),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(5),
-          bottomRight: Radius.circular(5),
-        ),
-      ),
-      child: SafeArea(
-        // ใช้ SafeArea เฉพาะส่วนบน
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Row(
               children: [
-                // ใช้ Text คงที่ตามโค้ด ReceivePage เดิม
-                const Text(
-                  'สวัสดี Tester',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
-                    shape: BoxShape.circle,
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios,
+                    color: Colors.black,
+                    size: 24,
                   ),
-                  child: const Icon(
-                    Icons.person,
-                    size: 28,
-                    color: Colors.white,
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'ส่งสินค้า',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFA9A9A9),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.location_on, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  // ใช้ Text คงที่ตามโค้ด ReceivePage เดิม
-                  const Expanded(
-                    child: Text(
-                      'หอพักอัจฉราแมนชั่น ตึกใหม่',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 20.0),
+            child: _buildContentTitle(),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('packages')
+                  .where(
+                    'sender_user_id',
+                    isEqualTo: FirebaseAuth.instance.currentUser?.uid,
+                  )
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return const Center(
+                    child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'),
+                  );
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('ยังไม่มีรายการจัดส่ง'));
+                }
+
+                final allPackages = snapshot.data!.docs;
+                final activePackages = allPackages.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return data['status'] != 'completed';
+                }).toList();
+
+                if (activePackages.isEmpty) {
+                  return const Center(
+                    child: Text('ยังไม่มีรายการที่กำลังจัดส่ง'),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  itemCount: activePackages.length,
+                  itemBuilder: (context, index) {
+                    final packageData =
+                        activePackages[index].data() as Map<String, dynamic>;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: _buildDeliveryCard(
+                        context,
+                        packageData: packageData,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SearchRecipientScreen(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  elevation: 5,
+                ),
+                child: const Text(
+                  'ส่งสินค้า',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
-  // ***** 7. Widget ใหม่: ส่วนของปุ่ม 3 ปุ่ม (จาก DeliveryPage) *****
-  Widget _buildButtonSection(BuildContext context) {
+  // ***** แก้ไขส่วนนี้: ให้แสดงรูปภาพจาก Cloudinary *****
+  Widget _buildDeliveryCard(
+    BuildContext context, {
+    required Map<String, dynamic> packageData,
+  }) {
+    final senderInfo =
+        packageData['sender_info'] as Map<String, dynamic>? ?? {};
+    final receiverInfo =
+        packageData['receiver_info'] as Map<String, dynamic>? ?? {};
+
+    // ดึง URL รูปภาพสินค้าออกมา
+    final imageUrl = packageData['proof_image_url'] as String? ?? '';
+
+    final senderLocation = senderInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้ส่ง';
+    final senderName = senderInfo['name'] ?? 'ไม่ระบุชื่อผู้ส่ง';
+    final senderPhone = senderInfo['phone'] ?? 'ไม่มีเบอร์โทร';
+
+    final recipientLocation = receiverInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้รับ';
+    final recipientName = receiverInfo['name'] ?? 'ไม่ระบุชื่อผู้รับ';
+    final recipientPhone = receiverInfo['phone'] ?? 'ไม่มีเบอร์โทร';
+
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: const BoxDecoration(color: Color(0xFFFEE146)),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionButton(
-                  context,
-                  text: 'ส่งสินค้า',
-                  icon: Icons.delivery_dining, // ไอคอนตามรูป
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildActionButton(
-                  context,
-                  text: 'สินค้าที่กำลังส่ง',
-                  icon: Icons.local_shipping, // ไอคอนตามรูป
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(height: 15),
-          Center(
-            child: _buildReceivedButton(context),
-          ), // ปุ่ม 'สินค้าที่ต้องรับ'
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- ส่วนที่แก้ไข ---
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12.0),
+            child: Container(
+              width: 60,
+              height: 60,
+              color: Colors.grey.shade200, // สีพื้นหลังเผื่อรูปโหลดไม่ขึ้น
+              child: (imageUrl.isNotEmpty)
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      // แสดง Loading ขณะโหลดรูป
+                      loadingBuilder: (context, child, progress) {
+                        return progress == null
+                            ? child
+                            : const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              );
+                      },
+                      // แสดง Icon กรณีรูป Error
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(
+                          Icons.image_not_supported,
+                          color: Colors.grey,
+                        );
+                      },
+                    )
+                  : const Icon(
+                      Icons.image_not_supported,
+                      color: Colors.grey,
+                    ), // กรณีไม่มี URL
+            ),
+          ),
+          // --------------------
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLocationRow(
+                  icon: Icons.location_on,
+                  color: Colors.red,
+                  location: senderLocation,
+                  person: 'ชื่อผู้ส่ง : $senderName',
+                  phone: 'เบอร์โทร : $senderPhone',
+                ),
+                const SizedBox(height: 12),
+                _buildLocationRow(
+                  icon: Icons.location_on,
+                  color: Colors.green,
+                  location: recipientLocation,
+                  person: 'ชื่อผู้รับ : $recipientName',
+                  phone: 'เบอร์โทร : $recipientPhone',
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: 120,
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DetailPage(),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE428),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 0,
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'รายละเอียด',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ***** 8. Widget ใหม่: ฟังก์ชันสร้างปุ่ม (จาก DeliveryPage) *****
-  Widget _buildActionButton(
-    BuildContext context, {
-    required String text,
+  // --- (Widget อื่นๆ ไม่มีการเปลี่ยนแปลง) ---
+  Widget _buildLocationRow({
     required IconData icon,
+    required Color color,
+    required String location,
+    required String person,
+    required String phone,
   }) {
-    return InkWell(
-      onTap: () {
-        if (text == 'ส่งสินค้า') {
-          // หน้านี้คือ ReceivePage อยู่แล้ว อาจจะไม่ต้องทำอะไร หรือ refresh
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const ReceivePage()),
-          );
-        } else if (text == 'สินค้าที่กำลังส่ง') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const StatusScreen()),
-          );
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              spreadRadius: 2,
-              blurRadius: 5,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.green, size: 40), // ไอคอนสีเขียวตามรูป
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ***** 9. Widget ใหม่: ฟังก์ชันสร้างปุ่ม 'สินค้าที่ต้องรับ' (จาก DeliveryPage) *****
-  Widget _buildReceivedButton(BuildContext context) {
-    return SizedBox(
-      width: 200,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TrackingScreen()),
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                spreadRadius: 2,
-                blurRadius: 5,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.check_circle,
-                color: Colors.blue[300],
-                size: 40,
-              ), // ไอคอนสีฟ้าตามรูป
-              const SizedBox(width: 10),
-              const Text(
-                'สินค้าที่ต้องรับ',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                location,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                person,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+              Text(
+                phone,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 
-  // --- (Widget เก่าที่ยังใช้งาน) ---
-
-  // --- Content Title ("รายการสินค้าที่ต้องรับ") ---
   Widget _buildContentTitle() {
     return Container(
-      width: double.infinity, // Make title container stretch full width
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12.0),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: Colors.yellow.shade700,
-          width: 1.5,
-        ), // Yellow border
+        border: Border.all(color: Colors.yellow.shade700, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.15),
@@ -333,237 +357,27 @@ class ReceivePage extends StatelessWidget {
     );
   }
 
-  // --- Delivery Card ---
-  Widget _buildDeliveryCard(
-    BuildContext context, {
-    required String senderLocation,
-    required String senderName,
-    required String recipientLocation,
-    required String recipientName,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20), // More rounded corners
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.center, // Align items vertically center
-        children: [
-          // Delivery Icon Container
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200, // Light grey background
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.delivery_dining, // Delivery icon
-              size: 40,
-              color: Colors.green.shade700, // Green icon color
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Location and Name Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLocationRow(
-                  icon: Icons.location_on,
-                  color: Colors.red, // Red for sender
-                  location: senderLocation,
-                  person: 'ชื่อผู้ส่ง : $senderName',
-                ),
-                const SizedBox(height: 12),
-                _buildLocationRow(
-                  icon: Icons.location_on,
-                  color: Colors.green, // Green for recipient
-                  location: recipientLocation,
-                  person: 'ชื่อผู้รับ : $recipientName',
-                ),
-                const SizedBox(height: 12),
-                // Details Button aligned to the right
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const DetailPage(), // Navigate to Detail Page
-                        ),
-                      );
-                      print('กดปุ่ม รายละเอียด');
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFDE428), // Yellow button
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      elevation: 0, // No shadow
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min, // Fit content size
-                      children: [
-                        Text(
-                          'รายละเอียด',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right, // Right arrow icon
-                          color: Colors.black,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- NEW GREEN SUBMIT BUTTON WIDGET ---
-  Widget _buildSubmitButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 32.0, bottom: 8.0),
-      child: ElevatedButton(
-        onPressed: () {
-          // Handle send product action
-          print('กดปุ่ม ส่งสินค้า สีเขียว');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const SearchRecipientScreen(),
-            ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-          elevation: 5,
-        ),
-        child: const Text(
-          'ส่งสินค้า',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- Location Row Helper ---
-  Widget _buildLocationRow({
-    required IconData icon,
-    required Color color,
-    required String location,
-    required String person,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start, // Align icon and text top
-      children: [
-        Icon(icon, color: color, size: 20), // Location icon
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Location Text
-              Text(
-                location,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              // Person Name Text
-              Text(
-                person,
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 12,
-                ), // Greyish text
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Bottom Navigation Bar ---
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
-      selectedItemColor: const Color(0xFFFEE146), // Yellow for selected item
-      unselectedItemColor: const Color.fromARGB(
-        255,
-        20,
-        19,
-        19,
-      ), // Dark grey for unselected
-      currentIndex: 0, // Assuming this page is the first tab (index 0)
+      selectedItemColor: const Color(0xFFFEE146),
+      unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
+      currentIndex: 0,
       onTap: (index) {
-        // Handle navigation
-        Widget page;
-        bool shouldReplace = true; // Use pushReplacement by default
-
+        if (index == 0) return;
         switch (index) {
-          case 0:
-            // Already on this page, do nothing or maybe refresh
-            return; // Exit if already on the current page
           case 1:
-            page = const HistoryPage();
-            shouldReplace = false; // Use push for History so user can go back
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HistoryPage()),
+            );
             break;
           case 2:
-            page = const MoreOptionsPage();
-            shouldReplace =
-                false; // Use push for More Options so user can go back
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const MoreOptionsPage()),
+            );
             break;
-          default:
-            return; // Should not happen
-        }
-
-        if (shouldReplace) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => page),
-          );
-        } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => page),
-          );
         }
       },
       items: const [
@@ -576,7 +390,29 @@ class ReceivePage extends StatelessWidget {
       ],
     );
   }
-} // End of ReceivePage class
+}
 
-// ***** 10. ลบ CustomAppBarClipper ที่ไม่ใช้ออก *****
-// class CustomAppBarClipper extends CustomClipper<Path> { ... }
+class CustomAppBarClipper extends CustomClipper<Path> {
+  final double borderRadius;
+  CustomAppBarClipper({this.borderRadius = 20.0});
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - borderRadius);
+    path.quadraticBezierTo(0, size.height, borderRadius, size.height);
+    path.lineTo(size.width - borderRadius, size.height);
+    path.quadraticBezierTo(
+      size.width,
+      size.height,
+      size.width,
+      size.height - borderRadius,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => true;
+}

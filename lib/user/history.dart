@@ -2,21 +2,27 @@ import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class HistoryPage extends StatelessWidget {
+class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
   @override
+  State<HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<HistoryPage> {
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // สีพื้นหลังเทาอ่อน
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: _buildCustomAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-        child: Column(
-          children: [
-            // --- ปุ่มประวัติการส่งสินค้า ---
-            Container(
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+            child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12.0),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -37,42 +43,213 @@ class HistoryPage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+          ),
+          
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              // ***** 1. แก้ไข Query: ดึงข้อมูลทั้งหมดของผู้ใช้ (ไม่ต้องกรอง status) *****
+              stream: FirebaseFirestore.instance
+                  .collection('packages')
+                  .where('sender_user_id', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return const Center(child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'));
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('ยังไม่มีประวัติการส่งสินค้า'));
+                }
 
-            // --- รายการประวัติ ---
-            _buildHistoryCard(
-              context,
-              senderLocation: 'คณะวิทยาการสารสนเทศ',
-              senderName: 'Nitipong Boonprasert',
-              recipientLocation: 'หอพักเรืองฤทธิ์เรสซิเดนซ์',
-              recipientName: 'Kanokwan Laptawee',
+                // ดึงข้อมูลทั้งหมด
+                final allPackages = snapshot.data!.docs;
+
+                // ***** 2. เพิ่มส่วนนี้: กรองข้อมูลในแอปเอง *****
+                final completedPackages = allPackages.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  // เอาเฉพาะรายการที่ status เป็น 'completed'
+                  return data['status'] == 'completed';
+                }).toList();
+                // ****************************************
+
+                if (completedPackages.isEmpty) {
+                  return const Center(child: Text('ยังไม่มีประวัติการส่งสินค้า'));
+                }
+
+                // ***** 3. ใช้ completedPackages ที่กรองแล้วมาสร้าง ListView *****
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  itemCount: completedPackages.length,
+                  itemBuilder: (context, index) {
+                    final packageData = completedPackages[index].data() as Map<String, dynamic>;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: _buildHistoryCard(context, packageData: packageData),
+                    );
+                  },
+                );
+              },
             ),
-            const SizedBox(height: 16),
-            _buildHistoryCard(
-              context,
-              senderLocation: 'คณะวิทยาการสารสนเทศ',
-              senderName: 'Nitipong Boonprasert',
-              recipientLocation: 'หอพักเรืองฤทธิ์เรสซิเดนซ์',
-              recipientName: 'Kanokwan Laptawee',
-            ),
-            const SizedBox(height: 16),
-            _buildHistoryCard(
-              context,
-              senderLocation: 'คณะวิทยาการสารสนเทศ',
-              senderName: 'Nitipong Boonprasert',
-              recipientLocation: 'หอพักเรืองฤทธิ์เรสซิเดนซ์',
-              recipientName: 'Kanokwan Laptawee',
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-
-      // ✅ เปลี่ยนจาก const CustomBottomNavBar(context) → _buildBottomNavigationBar(context)
       bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
-  // --- Widget สำหรับสร้าง AppBar แบบกำหนดเอง ---
+  // --- (Widget อื่นๆ ไม่มีการเปลี่ยนแปลง) ---
+  Widget _buildHistoryCard(
+    BuildContext context, {
+    required Map<String, dynamic> packageData,
+  }) {
+    final senderInfo = packageData['sender_info'] as Map<String, dynamic>? ?? {};
+    final receiverInfo = packageData['receiver_info'] as Map<String, dynamic>? ?? {};
+
+    final senderLocation = senderInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้ส่ง';
+    final senderName = senderInfo['name'] ?? 'ไม่ระบุชื่อผู้ส่ง';
+    final senderPhone = senderInfo['phone'] ?? 'ไม่มีเบอร์โทร';
+
+    final recipientLocation = receiverInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้รับ';
+    final recipientName = receiverInfo['name'] ?? 'ไม่ระบุชื่อผู้รับ';
+    final recipientPhone = receiverInfo['phone'] ?? 'ไม่มีเบอร์โทร';
+
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.check_circle_outline,
+              size: 40,
+              color: Colors.green.shade700,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLocationRow(
+                  icon: Icons.location_on,
+                  color: Colors.red,
+                  location: senderLocation,
+                  person: 'ชื่อผู้ส่ง : $senderName',
+                  phone: 'เบอร์โทร : $senderPhone',
+                ),
+                const SizedBox(height: 12),
+                _buildLocationRow(
+                  icon: Icons.location_on,
+                  color: Colors.green,
+                  location: recipientLocation,
+                  person: 'ชื่อผู้รับ : $recipientName',
+                  phone: 'เบอร์โทร : $recipientPhone',
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DetailPage(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFDE428),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'รายละเอียด',
+                          style: TextStyle(color: Colors.black, fontSize: 12),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Colors.black,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationRow({
+    required IconData icon,
+    required Color color,
+    required String location,
+    required String person,
+    required String phone,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                location,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                person,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+              Text(
+                phone,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   PreferredSize _buildCustomAppBar() {
     return PreferredSize(
       preferredSize: const Size.fromHeight(160),
@@ -132,149 +309,12 @@ class HistoryPage extends StatelessWidget {
     );
   }
 
-  // --- ฟังก์ชันสำหรับสร้างการ์ดประวัติ ---
-  Widget _buildHistoryCard(
-    BuildContext context, {
-    required String senderLocation,
-    required String senderName,
-    required String recipientLocation,
-    required String recipientName,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.delivery_dining,
-              size: 40,
-              color: Colors.green.shade700,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLocationRow(
-                  icon: Icons.location_on,
-                  color: Colors.red,
-                  location: senderLocation,
-                  person: 'ชื่อผู้ส่ง : $senderName',
-                ),
-                const SizedBox(height: 12),
-                _buildLocationRow(
-                  icon: Icons.location_on,
-                  color: Colors.green,
-                  location: recipientLocation,
-                  person: 'ชื่อผู้รับ : $recipientName',
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const DetailPage(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFDE428),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'รายละเอียด',
-                          style: TextStyle(color: Colors.black, fontSize: 12),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: Colors.black,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationRow({
-    required IconData icon,
-    required Color color,
-    required String location,
-    required String person,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                location,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                person,
-                style: const TextStyle(color: Colors.black54, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ✅ Bottom Navigation Bar แบบกดเปลี่ยนหน้า
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
       selectedItemColor: const Color(0xFFFEE146),
       unselectedItemColor: const Color.fromARGB(255, 20, 19, 19),
-      currentIndex: 1, // หน้านี้คือ index 1 (ประวัติ)
+      currentIndex: 1,
       onTap: (index) {
         switch (index) {
           case 0:
@@ -306,9 +346,6 @@ class HistoryPage extends StatelessWidget {
   }
 }
 
-// ==========================================================
-// ## Widget เสริม (Clipper) ##
-// ==========================================================
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
+import 'package:delivery/user/receive.dart';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -180,7 +181,7 @@ class _SendItemPageState extends State<SendItemPage> {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const HistoryPage()),
+        MaterialPageRoute(builder: (context) => const ReceivePage()),
         (route) => false,
       );
 

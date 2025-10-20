@@ -173,7 +173,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const DetailPage(),
+                          builder: (context) => const DetailPage(packageId: '',),
                         ),
                       );
                     },

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 // vvv เปลี่ยนชื่อคลาสเป็น StatusScreen
 class StatusScreen extends StatelessWidget {
   // vvv อัปเดต Constructor
-  const StatusScreen({Key? key}) : super(key: key);
+  const StatusScreen({super.key});
 
   // กำหนดสีเหลืองหลักที่ใช้ในแอป
   static const Color primaryYellow = Color(0xFFFDE100);
@@ -115,7 +115,7 @@ class StatusScreen extends StatelessWidget {
               "สินค้าที่จะส่ง",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFFA6A000),
+                color: Color(0xFFA6A000),
               ),
             ),
           ),

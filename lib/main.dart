@@ -1,12 +1,15 @@
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:delivery/firebase_options.dart';
 import 'package:delivery/user/login.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await initializeDateFormatting('th_TH'); // <-- บรรทัดสำคัญที่หายไป
   runApp(const MyApp());
 }
 class MyApp extends StatelessWidget {

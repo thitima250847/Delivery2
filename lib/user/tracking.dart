@@ -201,7 +201,7 @@ class TrackingScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => DetailPage(),
+                  builder: (context) => DetailPage(packageId: '',),
                 ), // <-- ลองลบ const
               );
               print('กดปุ่ม รายละเอียด');

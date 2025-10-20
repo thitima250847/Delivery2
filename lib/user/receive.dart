@@ -1,12 +1,12 @@
 import 'package:delivery/user/detail.dart';
-
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/search.dart';
-
+import 'package:delivery/user/status.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:delivery/user/tracking.dart';
 
 class ReceivePage extends StatefulWidget {
   const ReceivePage({super.key});
@@ -26,20 +26,13 @@ class _ReceivePageState extends State<ReceivePage> {
           clipper: CustomAppBarClipper(borderRadius: 30.0),
           child: Container(
             color: const Color(0xFFFDE428),
-            padding: const EdgeInsets.only(
-              top: 45,
-              left: 20,
-              right: 20,
-              bottom: 10,
-            ),
+            padding:
+                const EdgeInsets.only(top: 45, left: 20, right: 20, bottom: 10),
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios,
-                    color: Colors.black,
-                    size: 24,
-                  ),
+                  icon: const Icon(Icons.arrow_back_ios,
+                      color: Colors.black, size: 24),
                   onPressed: () {
                     Navigator.pop(context);
                   },
@@ -48,10 +41,9 @@ class _ReceivePageState extends State<ReceivePage> {
                 const Text(
                   'ส่งสินค้า',
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black),
                 ),
               ],
             ),
@@ -68,10 +60,8 @@ class _ReceivePageState extends State<ReceivePage> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('packages')
-                  .where(
-                    'sender_user_id',
-                    isEqualTo: FirebaseAuth.instance.currentUser?.uid,
-                  )
+                  .where('sender_user_id',
+                      isEqualTo: FirebaseAuth.instance.currentUser?.uid)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -79,8 +69,7 @@ class _ReceivePageState extends State<ReceivePage> {
                 }
                 if (snapshot.hasError) {
                   return const Center(
-                    child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'),
-                  );
+                      child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'));
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Text('ยังไม่มีรายการจัดส่ง'));
@@ -94,22 +83,20 @@ class _ReceivePageState extends State<ReceivePage> {
 
                 if (activePackages.isEmpty) {
                   return const Center(
-                    child: Text('ยังไม่มีรายการที่กำลังจัดส่ง'),
-                  );
+                      child: Text('ยังไม่มีรายการที่กำลังจัดส่ง'));
                 }
 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   itemCount: activePackages.length,
                   itemBuilder: (context, index) {
+                    final packageDoc = activePackages[index];
                     final packageData =
-                        activePackages[index].data() as Map<String, dynamic>;
+                        packageDoc.data() as Map<String, dynamic>;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 16.0),
-                      child: _buildDeliveryCard(
-                        context,
-                        packageData: packageData,
-                      ),
+                      child: _buildDeliveryCard(context,
+                          packageId: packageDoc.id, packageData: packageData),
                     );
                   },
                 );
@@ -125,8 +112,7 @@ class _ReceivePageState extends State<ReceivePage> {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const SearchRecipientScreen(),
-                    ),
+                        builder: (context) => const SearchRecipientScreen()),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -154,26 +140,24 @@ class _ReceivePageState extends State<ReceivePage> {
     );
   }
 
-  // ***** แก้ไขส่วนนี้: ให้แสดงรูปภาพจาก Cloudinary *****
   Widget _buildDeliveryCard(
     BuildContext context, {
+    required String packageId, // รับ packageId
     required Map<String, dynamic> packageData,
   }) {
     final senderInfo =
         packageData['sender_info'] as Map<String, dynamic>? ?? {};
     final receiverInfo =
         packageData['receiver_info'] as Map<String, dynamic>? ?? {};
-
-    // ดึง URL รูปภาพสินค้าออกมา
     final imageUrl = packageData['proof_image_url'] as String? ?? '';
 
-    final senderLocation = senderInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้ส่ง';
-    final senderName = senderInfo['name'] ?? 'ไม่ระบุชื่อผู้ส่ง';
-    final senderPhone = senderInfo['phone'] ?? 'ไม่มีเบอร์โทร';
+    final senderLocation = senderInfo['address'] ?? 'ไม่ระบุ';
+    final senderName = senderInfo['name'] ?? 'ไม่ระบุ';
+    final senderPhone = senderInfo['phone'] ?? 'ไม่ระบุ';
 
-    final recipientLocation = receiverInfo['address'] ?? 'ไม่ระบุที่อยู่ผู้รับ';
-    final recipientName = receiverInfo['name'] ?? 'ไม่ระบุชื่อผู้รับ';
-    final recipientPhone = receiverInfo['phone'] ?? 'ไม่มีเบอร์โทร';
+    final recipientLocation = receiverInfo['address'] ?? 'ไม่ระบุ';
+    final recipientName = receiverInfo['name'] ?? 'ไม่ระบุ';
+    final recipientPhone = receiverInfo['phone'] ?? 'ไม่ระบุ';
 
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -192,42 +176,20 @@ class _ReceivePageState extends State<ReceivePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- ส่วนที่แก้ไข ---
           ClipRRect(
             borderRadius: BorderRadius.circular(12.0),
             child: Container(
               width: 60,
               height: 60,
-              color: Colors.grey.shade200, // สีพื้นหลังเผื่อรูปโหลดไม่ขึ้น
+              color: Colors.grey.shade200,
               child: (imageUrl.isNotEmpty)
-                  ? Image.network(
-                      imageUrl,
+                  ? Image.network(imageUrl,
                       fit: BoxFit.cover,
-                      // แสดง Loading ขณะโหลดรูป
-                      loadingBuilder: (context, child, progress) {
-                        return progress == null
-                            ? child
-                            : const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              );
-                      },
-                      // แสดง Icon กรณีรูป Error
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
-                          Icons.image_not_supported,
-                          color: Colors.grey,
-                        );
-                      },
-                    )
-                  : const Icon(
-                      Icons.image_not_supported,
-                      color: Colors.grey,
-                    ), // กรณีไม่มี URL
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.error))
+                  : const Icon(Icons.image_not_supported, color: Colors.grey),
             ),
           ),
-          // --------------------
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -256,10 +218,12 @@ class _ReceivePageState extends State<ReceivePage> {
                     height: 40,
                     child: ElevatedButton(
                       onPressed: () {
+                        // ***** ส่ง packageId ไปยัง DetailPage *****
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const DetailPage(),
+                            builder: (context) =>
+                                DetailPage(packageId: packageId),
                           ),
                         );
                       },
@@ -269,9 +233,7 @@ class _ReceivePageState extends State<ReceivePage> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 0,
-                        ),
+                            horizontal: 5, vertical: 0),
                         elevation: 0,
                       ),
                       child: const Text(
@@ -293,7 +255,6 @@ class _ReceivePageState extends State<ReceivePage> {
     );
   }
 
-  // --- (Widget อื่นๆ ไม่มีการเปลี่ยนแปลง) ---
   Widget _buildLocationRow({
     required IconData icon,
     required Color color,
@@ -339,7 +300,10 @@ class _ReceivePageState extends State<ReceivePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.yellow.shade700, width: 1.5),
+        border: Border.all(
+          color: Colors.yellow.shade700,
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.15),
@@ -395,7 +359,6 @@ class _ReceivePageState extends State<ReceivePage> {
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});
-
   @override
   Path getClip(Size size) {
     final path = Path();

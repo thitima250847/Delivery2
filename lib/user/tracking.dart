@@ -1,3 +1,5 @@
+// tracking.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,8 +9,9 @@ import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 
 class TrackingScreen extends StatefulWidget {
-  final String packageId; // ✅ ต้องส่งเข้ามา
-  const TrackingScreen({super.key, required this.packageId});
+  // änner แก้ไข: ทำให้ packageId สามารถเป็น null ได้
+  final String? packageId;
+  const TrackingScreen({super.key, this.packageId});
 
   @override
   State<TrackingScreen> createState() => _TrackingScreenState();
@@ -20,16 +23,23 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
 
-  // ----- สถานะ/UI state -----
   String _riderName = 'กำลังโหลด...';
   String _riderPhone = 'กำลังโหลด...';
   String _riderPlate = 'กำลังโหลด...';
-  int _currentStep = 0; // 0..3 = (pending, accepted, on_delivery, delivered)
+  int _currentStep = 0;
+
+  // änner เพิ่ม: ตัวแปรเช็คว่ามี packageId หรือไม่
+  bool get _hasPackage => widget.packageId != null && widget.packageId!.isNotEmpty;
+  
+  
 
   @override
   void initState() {
     super.initState();
-    _listenPackage();
+    // änner แก้ไข: เริ่มฟังข้อมูลต่อเมื่อมี packageId เท่านั้น
+    if (_hasPackage) {
+      _listenPackage();
+    }
   }
 
   @override
@@ -40,16 +50,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   void _listenPackage() {
     _sub?.cancel();
+    // ใช้ widget.packageId! ได้อย่างปลอดภัยเพราะเราเช็คแล้วใน initState
     _sub = FirebaseFirestore.instance
         .collection('packages')
-        .doc(widget.packageId)
+        .doc(widget.packageId!)
         .snapshots()
         .listen((snap) {
       if (!snap.exists || snap.data() == null) return;
       final data = snap.data()!;
       final status = (data['status'] as String?)?.toLowerCase().trim() ?? 'pending';
 
-      // map สถานะ → step index 0..3
       final step = switch (status) {
         'pending' => 0,
         'accepted' => 1,
@@ -58,9 +68,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
         _ => 0,
       };
 
-      // ถ้ามีฟิลด์ชื่ออื่น ให้เปลี่ยนตรงนี้ให้ตรง schema ของคุณ
-      final riderName =
-          (data['rider_name'] as String?) ??
+      final riderName = (data['rider_name'] as String?) ??
           (data['rider_id'] != null ? 'Rider: ${data['rider_id']}' : 'ยังไม่มีไรเดอร์');
       final riderPhone = (data['rider_phone'] as String?) ?? 'ไม่ระบุ';
       final riderPlate = (data['rider_plate'] as String?) ?? 'ไม่ระบุ';
@@ -80,31 +88,36 @@ class _TrackingScreenState extends State<TrackingScreen> {
     return Scaffold(
       backgroundColor: lightGreyBg,
       appBar: _buildCustomAppBar(context),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 24.0, bottom: 24.0),
-          child: Column(
-            children: [
-              _buildMap(),
-              const SizedBox(height: 24),
-              // บล็อกสถานะตามเอกสาร Firestore ของ packageId ที่ส่งมา
-              _buildRiderStatusBlock(
-                context: context,
-                riderName: _riderName,
-                riderPhone: _riderPhone,
-                riderPlate: _riderPlate,
-                currentStep: _currentStep,
+      // änner แก้ไข: แสดงผลตามเงื่อนไขว่ามี packageId หรือไม่
+      body: _hasPackage
+          ? SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 24.0, bottom: 24.0),
+                child: Column(
+                  children: [
+                    _buildMap(),
+                    const SizedBox(height: 24),
+                    _buildRiderStatusBlock(
+                      context: context,
+                      riderName: _riderName,
+                      riderPhone: _riderPhone,
+                      riderPlate: _riderPlate,
+                      currentStep: _currentStep,
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
-      ),
-      // *** แก้ไข: bottomNavigationBar ต้องเป็น parameter ของ Scaffold ***
+            )
+          : const Center(
+              child: Text(
+                'ยังไม่มีออเดอร์ที่กำลังส่ง',
+                style: TextStyle(fontSize: 18, color: Colors.black54),
+              ),
+            ),
       bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
-  /// Curved AppBar
   PreferredSize _buildCustomAppBar(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
     return PreferredSize(
@@ -123,7 +136,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 ),
                 const SizedBox(width: 10),
                 const Text(
-                  'สินค้าที่ต้องรับ',
+                  'สินค้าที่กำลังส่ง',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -138,7 +151,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Map placeholder (สามารถแทนด้วยแผนที่จริงภายหลัง)
   Widget _buildMap() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -154,13 +166,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Rider info + stepper block
   Widget _buildRiderStatusBlock({
     required BuildContext context,
     required String riderName,
     required String riderPhone,
+    
     required String riderPlate,
     required int currentStep,
+    
   }) {
     return Column(
       children: [
@@ -182,7 +195,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Rider info card
   Widget _buildRiderInfoCard({
     required BuildContext context,
     required String name,
@@ -239,14 +251,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
-              // *** แก้ไข Navigation: ใช้ packageId จริง ***
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => DetailPage(packageId: widget.packageId),
-                ), 
+                  // ใช้ widget.packageId! ได้อย่างปลอดภัย
+                  builder: (context) => DetailPage(packageId: widget.packageId!),
+                ),
               );
-              print('กดปุ่ม รายละเอียด');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryYellow,
@@ -269,7 +280,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Yellow stepper bar
   Widget _buildStatusStepper({required int currentStep}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
@@ -364,7 +374,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  /// Bottom Navigation Bar
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -378,7 +387,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       onTap: (index) {
         switch (index) {
           case 0:
-            break; // หน้าปัจจุบัน
+            break;
           case 1:
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HistoryPage()));
             break;
@@ -396,7 +405,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 }
 
-/// Clipper for AppBar
 class CustomAppBarClipper extends CustomClipper<Path> {
   final double borderRadius;
   CustomAppBarClipper({this.borderRadius = 20.0});
@@ -416,4 +424,3 @@ class CustomAppBarClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => true;
 }
-

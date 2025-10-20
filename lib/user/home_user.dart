@@ -1,12 +1,13 @@
+// home_user.dart
+
 import 'package:delivery/user/receive.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// หน้านำทาง (เดิม)
+// หน้านำทาง
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
-import 'package:delivery/user/status.dart';
 import 'package:delivery/user/tracking.dart';
 
 class DeliveryPage extends StatefulWidget {
@@ -57,15 +58,13 @@ class _DeliveryPageState extends State<DeliveryPage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      // log ถ้าต้องการ
       setState(() => _isLoading = false);
     }
   }
 
-  // ---------- Helpers: หา packageId แล้วค่อยนำทาง ----------
   Future<String?> _findActivePackageId({
-    required String customerField, // เช่น 'customer_id'
-    required List<String> statuses, // สถานะที่อยากหา
+    required String customerField,
+    required List<String> statuses,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
@@ -75,7 +74,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           .collection('packages')
           .where(customerField, isEqualTo: user.uid)
           .where('status', whereIn: statuses)
-          .limit(1) // ไม่ orderBy เพื่อลด requirement เรื่อง index
+          .limit(1)
           .get();
 
       if (q.docs.isEmpty) return null;
@@ -85,46 +84,18 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  Future<void> _openStatusForActivePackage(BuildContext context) async {
+  // änner แก้ไข: นำทางไปหน้า Tracking ทันที
+  Future<void> _navigateToTrackingPage(BuildContext context) async {
     final pkgId = await _findActivePackageId(
-      customerField: 'customer_id',          // <-- เปลี่ยนให้ตรง schema ถ้าใช้ชื่ออื่น
+      customerField: 'customer_id',
       statuses: const ['accepted', 'on_delivery'],
     );
-    if (pkgId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบงานที่กำลังส่ง')),
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => StatusScreen(packageId: pkgId)),
-    );
-  }
-
-  Future<void> _openTrackingForActivePackage(BuildContext context) async {
-    final pkgId = await _findActivePackageId(
-      customerField: 'customer_id',          // <-- เปลี่ยนให้ตรง schema
-      statuses: const ['accepted', 'on_delivery'],
-    );
-    if (pkgId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบงานที่ต้องติดตาม')),
-        );
-      }
-      return;
-    }
     if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => TrackingScreen(packageId: pkgId)),
     );
   }
-  // ----------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +126,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ส่วนบนของหน้า
   Widget _buildTopSection() {
     return Container(
       width: double.infinity,
@@ -218,7 +188,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ส่วนของปุ่ม 3 ปุ่ม
   Widget _buildButtonSection(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -252,7 +221,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ฟังก์ชันสร้างปุ่มสำหรับ 'ส่งสินค้า' และ 'สินค้าที่กำลังส่ง'
   Widget _buildActionButton(
     BuildContext context, {
     required String text,
@@ -263,7 +231,8 @@ class _DeliveryPageState extends State<DeliveryPage> {
         if (text == 'ส่งสินค้า') {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivePage()));
         } else if (text == 'สินค้าที่กำลังส่ง') {
-          await _openStatusForActivePackage(context); // ✅ ดึง packageId แล้วไปหน้า Status
+          // änner แก้ไข: เรียกใช้ฟังก์ชันใหม่ที่นำทางไปทันที
+          await _navigateToTrackingPage(context);
         }
       },
       child: Container(
@@ -298,13 +267,13 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // ปุ่ม 'สินค้าที่ต้องรับ' → เปิดหน้า Tracking พร้อม packageId
   Widget _buildReceivedButton(BuildContext context) {
     return SizedBox(
       width: 200,
       child: InkWell(
         onTap: () async {
-          await _openTrackingForActivePackage(context); // ✅ ดึง packageId แล้วไปหน้า Tracking
+          // änner แก้ไข: เรียกใช้ฟังก์ชันใหม่ที่นำทางไปทันที
+          await _navigateToTrackingPage(context);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
@@ -336,7 +305,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // การ์ดโฆษณา
   Widget _buildAdCard({
     required String imageUrl,
     required String title,
@@ -376,7 +344,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 
-  // เมนูด้านล่าง
   Widget _buildBottomNavigationBar(BuildContext context) {
     return BottomNavigationBar(
       backgroundColor: Colors.white,
@@ -385,7 +352,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
       onTap: (index) {
         switch (index) {
           case 0:
-            break; // อยู่หน้าแรกแล้ว
+            break;
           case 1:
             Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
             break;
@@ -400,5 +367,5 @@ class _DeliveryPageState extends State<DeliveryPage> {
         BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'อื่นๆ'),
       ],
     );
-    }
+  }
 }

@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/tracking.dart';
+import 'package:delivery/user/status.dart'; // änner เพิ่ม: import StatusScreen
 
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
@@ -62,8 +63,9 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
+  // änner แก้ไข: ใช้ userField แทน customerField
   Future<String?> _findActivePackageId({
-    required String customerField,
+    required String userField,
     required List<String> statuses,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -72,7 +74,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     try {
       final q = await FirebaseFirestore.instance
           .collection('packages')
-          .where(customerField, isEqualTo: user.uid)
+          .where(userField, isEqualTo: user.uid)
           .where('status', whereIn: statuses)
           .limit(1)
           .get();
@@ -84,17 +86,62 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  // änner แก้ไข: นำทางไปหน้า Tracking ทันที
-  Future<void> _navigateToTrackingPage(BuildContext context) async {
-    final pkgId = await _findActivePackageId(
-      customerField: 'customer_id',
-      statuses: const ['accepted', 'on_delivery'],
-    );
+  // änner แก้ไข: นำทางไปหน้า Tracking Screen หรือ Status Screen โดยจัดการค่า null
+  Future<void> _navigateToTrackingPage(BuildContext context, {required bool isReceiving}) async {
+    String? pkgId;
+    
+    if (isReceiving) {
+      // 1. สำหรับ 'สินค้าที่ต้องรับ' (ผู้ใช้คือ Receiver)
+      pkgId = await _findActivePackageId(
+        userField: 'receiver_user_id', // ค้นหาในฐานะผู้รับ
+        statuses: const ['accepted', 'on_delivery'],
+      );
+    } else {
+      // 2. สำหรับ 'สินค้าที่กำลังส่ง' (ผู้ใช้คือ Sender)
+      pkgId = await _findActivePackageId(
+        userField: 'sender_user_id', // ค้นหาในฐานะผู้ส่ง
+        statuses: const ['pending', 'accepted', 'on_delivery'],
+      );
+    }
+
     if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => TrackingScreen(packageId: pkgId)),
-    );
+    
+    // 3. ตรวจสอบค่า pkgId ก่อนนำทาง (แก้ String? can't be assigned to String)
+    if (pkgId == null) {
+      // แสดงข้อความแจ้งเตือนที่เหมาะสม
+      final String message = isReceiving 
+          ? 'ยังไม่มีสินค้ากำลังจัดส่งมาถึงคุณ'
+          : 'ยังไม่มีออเดอร์ที่กำลังดำเนินการ';
+          
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange,
+        ),
+      );
+
+      // หากไม่มี Package ที่กำลังใช้งานอยู่ ให้ส่ง packageId เป็น null ไปยัง TrackingScreen
+      if (!isReceiving) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TrackingScreen(packageId: null)),
+        );
+      }
+      return;
+    }
+
+    // 4. นำทางไปยังหน้าจอที่ถูกต้อง (ใช้ pkgId! เพื่อยืนยันว่าไม่ใช่ null)
+    if (isReceiving) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => StatusScreen(packageId: pkgId!)),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TrackingScreen(packageId: pkgId!)),
+      );
+    }
   }
 
   @override
@@ -231,8 +278,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         if (text == 'ส่งสินค้า') {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivePage()));
         } else if (text == 'สินค้าที่กำลังส่ง') {
-          // änner แก้ไข: เรียกใช้ฟังก์ชันใหม่ที่นำทางไปทันที
-          await _navigateToTrackingPage(context);
+          await _navigateToTrackingPage(context, isReceiving: false);
         }
       },
       child: Container(
@@ -272,8 +318,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
       width: 200,
       child: InkWell(
         onTap: () async {
-          // änner แก้ไข: เรียกใช้ฟังก์ชันใหม่ที่นำทางไปทันที
-          await _navigateToTrackingPage(context);
+          await _navigateToTrackingPage(context, isReceiving: true);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),

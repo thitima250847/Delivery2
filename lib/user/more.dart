@@ -63,26 +63,6 @@ class MoreOptionsPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 15),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.location_on, color: Colors.black54, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'หอพักอัครฉัตรแมนชั่น ตึกใหม่',
-                      style: TextStyle(color: Colors.black54, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),

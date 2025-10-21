@@ -37,6 +37,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         return;
       }
 
+      // **ส่วนนี้คือส่วนที่ดึงที่อยู่แรก (ที่อยู่ปัจจุบัน) มาแสดง**
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
 
@@ -49,6 +50,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           final firstAddress = addresses[0] as Map<String, dynamic>;
           addressText = firstAddress['address_text'] as String?;
         }
+      // **สิ้นสุดส่วนที่ดึงที่อยู่แรก (ที่อยู่ปัจจุบัน) มาแสดง**
 
         setState(() {
           _userName = name;

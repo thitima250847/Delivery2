@@ -2,11 +2,9 @@ import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/search.dart';
-import 'package:delivery/user/status.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:delivery/user/tracking.dart';
 
 class ReceivePage extends StatefulWidget {
   const ReceivePage({super.key});
@@ -62,6 +60,9 @@ class _ReceivePageState extends State<ReceivePage> {
                   .collection('packages')
                   .where('sender_user_id',
                       isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                  // ***** แก้ไข: กรองเอาสถานะ 'completed' ออกไป *****
+                  .where('status', whereIn: ['pending', 'accepted', 'on_delivery'])
+                  // .where('status', isNotEqualTo: 'completed') // อีกวิธี (ต้องใช้ index)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -72,19 +73,19 @@ class _ReceivePageState extends State<ReceivePage> {
                       child: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล'));
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('ยังไม่มีรายการจัดส่ง'));
+                  return const Center(child: Text('ยังไม่มีรายการจัดส่งที่กำลังดำเนินการ'));
                 }
 
+                final activePackages = snapshot.data!.docs;
+
+                // ลบการกรองซ้ำซ้อนในโค้ดเดิมออก เนื่องจากเรากรองด้วย Firestore query แล้ว
+                /*
                 final allPackages = snapshot.data!.docs;
                 final activePackages = allPackages.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['status'] != 'completed';
                 }).toList();
-
-                if (activePackages.isEmpty) {
-                  return const Center(
-                      child: Text('ยังไม่มีรายการที่กำลังจัดส่ง'));
-                }
+                */
 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -379,3 +380,4 @@ class CustomAppBarClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => true;
 }
+

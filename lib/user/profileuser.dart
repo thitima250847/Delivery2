@@ -92,6 +92,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _saveNewAddress(pickedAddress, pickedLocation);
       }
     }
+    // หลังจากเพิ่มที่อยู่ใหม่แล้ว ควรอัปเดตสถานะ _isAddingAddress เป็น false
+    if(mounted) {
+      setState(() {
+        _isAddingAddress = false;
+      });
+    }
   }
 
   // --- 3. Save the new address to Firestore ---
@@ -110,15 +116,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     };
 
     try {
+      // 1. ดึงรายการที่อยู่ปัจจุบันมา
+      List<dynamic> currentAddresses = List.from(_userAddresses);
+      
+      // 2. ใส่ที่อยู่ใหม่ไปเป็นอันแรก (กำหนดให้เป็น Default ทันที)
+      currentAddresses.insert(0, newAddress); 
+
+      // 3. อัปเดต Firestore ด้วยรายการใหม่
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'addresses': FieldValue.arrayUnion([newAddress]) // เพิ่มลงใน List
+        'addresses': currentAddresses,
       });
-      _showSnack("บันทึกที่อยู่ใหม่สำเร็จ!", isSuccess: true);
+      
+      _showSnack("บันทึกและตั้งเป็นที่อยู่ปัจจุบันสำเร็จ!", isSuccess: true);
       
       // Clear the input field and refresh data
       if (mounted) {
         setState(() {
-          // ซ่อนช่อง input ว่างทันทีหลังบันทึก
           _isAddingAddress = false; 
           _newAddressController.clear();
         });
@@ -131,6 +144,72 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _showSnack("เกิดข้อผิดพลาดในการบันทึกที่อยู่");
     }
   }
+  
+  // --- 4. Show dialog and update default address ---
+  Future<void> _confirmAndUpdateDefaultAddress(Map<String, dynamic> selectedAddress) async {
+    // 1. แสดง Pop-up ยืนยัน
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('ตั้งเป็นที่อยู่ปัจจุบัน'),
+          content: Text('คุณต้องการตั้ง "${selectedAddress['address_text']}" เป็นที่อยู่ปัจจุบันหรือไม่?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false), // ยกเลิก
+              child: const Text('ยกเลิก'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true), // ตกลง
+              child: const Text('ตกลง'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      await _updateAddressOrder(selectedAddress);
+    }
+  }
+
+  // --- 5. Logic to re-order the addresses in Firestore ---
+  Future<void> _updateAddressOrder(Map<String, dynamic> selectedAddress) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. สร้างรายการที่อยู่ใหม่โดยย้าย selectedAddress ไปเป็นอันแรก
+      List<dynamic> currentAddresses = List.from(_userAddresses);
+      
+      // ลบที่อยู่เดิมออกจากรายการ (ใช้เงื่อนไขการเปรียบเทียบ address_text และ lat/lng)
+      currentAddresses.removeWhere((addr) {
+        if (addr is Map && addr.containsKey('gps')) {
+          return addr['address_text'] == selectedAddress['address_text'] &&
+                 addr['gps']['lat'] == selectedAddress['gps']['lat'] &&
+                 addr['gps']['lng'] == selectedAddress['gps']['lng'];
+        }
+        return false;
+      });
+      
+      // ใส่ selectedAddress ไปเป็นอันแรก
+      currentAddresses.insert(0, selectedAddress); 
+
+      // 2. อัปเดต Firestore ด้วยรายการใหม่
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'addresses': currentAddresses,
+      });
+      
+      _showSnack("เปลี่ยนที่อยู่ปัจจุบันสำเร็จ!", isSuccess: true);
+      
+      // 3. ดึงข้อมูลใหม่มาแสดงทันที
+      _fetchUserData();
+
+    } catch (e) {
+      _showSnack("เกิดข้อผิดพลาดในการเปลี่ยนที่อยู่ปัจจุบัน");
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -208,19 +287,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                           ),
                         
-                        // --- 6. Display list of saved addresses ---
+                        // --- 6. Display list of saved addresses (แก้ไขให้กดเพื่อตั้งเป็นที่อยู่ปัจจุบันได้) ---
                         // แสดงที่อยู่ที่บันทึกไว้ทั้งหมด
                         ..._userAddresses.map((address) {
                             final addressMap = (address is Map) ? address : {};
                             final addressText = addressMap['address_text'] ?? 'ที่อยู่ไม่ถูกต้อง';
+                            
+                            // ตรวจสอบว่าที่อยู่นี้เป็นที่อยู่แรก (ปัจจุบัน) หรือไม่
+                            final bool isDefault = _userAddresses.isNotEmpty && _userAddresses.first == address;
+                            
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12.0),
                               child: _buildInfoField(
                                 icon: Icons.location_on_outlined,
-                                text: addressText,
+                                text: addressText + (isDefault ? ' (ปัจจุบัน)' : ''), // เพิ่มคำว่า (ปัจจุบัน)
+                                isButton: true, // ตั้งให้เป็นปุ่มกดได้
+                                onTap: isDefault 
+                                    ? null // ถ้าเป็นปัจจุบันแล้ว ไม่ต้องทำอะไร
+                                    : () => _confirmAndUpdateDefaultAddress(addressMap.cast<String, dynamic>()), // เรียก Pop-up
+                                borderColor: isDefault ? primaryYellow : null, // เน้นสีเหลืองถ้าเป็นปัจจุบัน
                               ),
                             );
-                        }).toList(),
+                        }),
                         
                         const SizedBox(height: 24.0),
                       ],
@@ -314,10 +402,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     TextEditingController? controller,
     Color? borderColor, 
   }) {
+    // ต้องสร้าง TextEditingController ใหม่ทุกครั้งสำหรับ TextFormField ที่เป็น readOnly
+    // มิฉะนั้นจะเกิดข้อผิดพลาดในการจัดการ TextEditingController ซ้ำ
+    final displayController = controller ?? TextEditingController(text: text);
+    
+    // ตั้งค่า cursor color เป็นโปร่งใสเพื่อซ่อน cursor เมื่อเป็นปุ่มกด
+    final cursorColor = isButton ? Colors.transparent : primaryYellow;
+
     return TextFormField(
-      controller: controller ?? TextEditingController(text: text),
+      controller: displayController,
       readOnly: true, 
       onTap: isButton ? onTap : null, 
+      cursorColor: cursorColor, // ซ่อน cursor เมื่อเป็นปุ่มกด
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: Colors.grey[700]),
         suffixIcon: trailingIcon != null ? Icon(trailingIcon, color: Colors.grey[700]) : null,
@@ -340,7 +436,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       style: TextStyle(
         fontSize: 15,
         color: Colors.grey[800],
-        fontFamily: (text == "********") ? 'Roboto' : null,
+        fontFamily: (text.contains("********")) ? 'Roboto' : null,
       ),
     );
   }

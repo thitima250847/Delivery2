@@ -196,7 +196,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                             child: _buildRiderStatusBlock(
                                 context: context, package: package),
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   ),

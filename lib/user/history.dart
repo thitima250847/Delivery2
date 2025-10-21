@@ -275,26 +275,6 @@ class _HistoryPageState extends State<HistoryPage> {
                 ],
               ),
               const SizedBox(height: 15),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.location_on, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'หอพักอัครฉัตรแมนชั่น ตึกใหม่',
-                      style: TextStyle(color: Colors.black54, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),

@@ -239,7 +239,7 @@ class _SendItemPageState extends State<SendItemPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => ReceivePage(),
         ),
         title: const Text(
           'ส่งสินค้า',

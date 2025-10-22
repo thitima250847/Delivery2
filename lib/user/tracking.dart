@@ -19,7 +19,7 @@ class PackageInfo {
   final Timestamp? deliveredAt;
   final latlong.LatLng riderLocation;
   final latlong.LatLng destinationLocation;
-  // änner เพิ่ม: pickupLocation เพื่อใช้เป็นหมุดสีเขียว
+  // เพิ่ม: pickupLocation เพื่อใช้เป็นหมุดสีเขียว
   final latlong.LatLng pickupLocation;
   final String riderName;
   final String riderPhone;
@@ -32,7 +32,7 @@ class PackageInfo {
     this.deliveredAt,
     required this.riderLocation,
     required this.destinationLocation,
-    required this.pickupLocation, // änner เพิ่ม
+    required this.pickupLocation, // เพิ่ม
     this.riderName = 'กำลังค้นหา...',
     this.riderPhone = '...',
     this.riderPlate = '...',
@@ -126,8 +126,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             (pkg['receiver_info'] as Map<String, dynamic>?) ?? {};
         final destLat = (receiverInfo['lat'] as num?)?.toDouble() ?? 0.0;
         final destLng = (receiverInfo['lng'] as num?)?.toDouble() ?? 0.0;
-
-        // änner ดึงพิกัดจุดรับสินค้าจาก sender_info
+        
         final senderInfo = (pkg['sender_info'] as Map<String, dynamic>?) ?? {};
         final pickupLat = (senderInfo['lat'] as num?)?.toDouble() ?? 0.0;
         final pickupLng = (senderInfo['lng'] as num?)?.toDouble() ?? 0.0;
@@ -139,7 +138,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
           deliveredAt: pkg['delivered_at'] as Timestamp?,
           riderLocation: latlong.LatLng(riderLat, riderLng),
           destinationLocation: latlong.LatLng(destLat, destLng),
-          pickupLocation: latlong.LatLng(pickupLat, pickupLng), // änner เพิ่ม
+          pickupLocation: latlong.LatLng(pickupLat, pickupLng), 
           riderName: riderData?['name'] ?? 'ยังไม่มีผู้รับงาน',
           riderPhone: riderData?['phone_number'] ?? '-',
           riderPlate: riderData?['license_plate'] ?? '-',
@@ -206,42 +205,42 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   Widget _buildMultiRiderMap(List<PackageInfo> packages) {
-    // Map สำหรับรวมป้ายทะเบียนของหมุดที่อยู่พิกัดเดียวกัน
     final Map<latlong.LatLng, List<String>> riderLocations = {};
-    final Map<latlong.LatLng, List<String>> pickupLocations = {}; // änner เพิ่ม
+    final Map<latlong.LatLng, List<String>> pickupLocations = {}; 
     final Map<latlong.LatLng, List<String>> destinationLocations = {};
 
+    // VVVVVVVVVVVVVVVVVVVVVVVVVV ---- จุดที่แก้ไข ---- VVVVVVVVVVVVVVVVVVVVVVVVVV
+    // ลบเงื่อนไข if ที่เช็ค status ออก เพื่อให้วน loop ทุก package ที่มี
     for (var package in packages) {
-      if (package.status == 'accepted' ||
-          package.status == 'on_delivery' ||
-          package.status == 'delivered') {
-        // 1. รวบรวมตำแหน่งไรเดอร์ (รถ)
-        if (package.riderLocation.latitude != 0.0) {
-          final loc = package.riderLocation;
-          riderLocations.putIfAbsent(loc, () => []).add(package.riderPlate);
-        }
+      // 1. รวบรวมตำแหน่งไรเดอร์ (รถ) - จะทำงานเมื่อมีไรเดอร์แล้วเท่านั้น
+      if (package.riderLocation.latitude != 0.0) {
+        final loc = package.riderLocation;
+        riderLocations.putIfAbsent(loc, () => []).add(package.riderPlate);
+      }
 
-        // 2. รวบรวมตำแหน่งจุดรับสินค้า (หมุดสีเขียว)
-        if (package.pickupLocation.latitude != 0.0) {
-          final loc = package.pickupLocation;
-          pickupLocations.putIfAbsent(loc, () => []).add(package.riderPlate);
-        }
+      // 2. รวบรวมตำแหน่งจุดรับสินค้า (หมุดสีเขียว) - ทำงานสำหรับทุกสถานะ
+      if (package.pickupLocation.latitude != 0.0) {
+        final loc = package.pickupLocation;
+        final label = package.status == 'pending' ? 'รอไรเดอร์' : package.riderPlate;
+        pickupLocations.putIfAbsent(loc, () => []).add(label);
+      }
 
-        // 3. รวบรวมตำแหน่งจุดส่งสินค้า (หมุดสีแดง)
-        if (package.destinationLocation.latitude != 0.0) {
-          final loc = package.destinationLocation;
-          destinationLocations
-              .putIfAbsent(loc, () => [])
-              .add(package.riderPlate);
-        }
+      // 3. รวบรวมตำแหน่งจุดส่งสินค้า (หมุดสีแดง) - ทำงานสำหรับทุกสถานะ
+      if (package.destinationLocation.latitude != 0.0) {
+        final loc = package.destinationLocation;
+        final label = package.status == 'pending' ? 'รอไรเดอร์' : package.riderPlate;
+        destinationLocations
+            .putIfAbsent(loc, () => [])
+            .add(label);
       }
     }
+    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     final List<Marker> markers = [];
 
     // 4. สร้าง Marker สำหรับตำแหน่งไรเดอร์ (รถ สีน้ำเงิน)
     riderLocations.forEach((location, plates) {
-      final label = plates.join(', ');
+      final label = plates.where((p) => p != 'รอไรเดอร์').toSet().join(', ');
       markers.add(Marker(
           point: location,
           width: 100,
@@ -256,7 +255,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
     // 5. สร้าง Marker สำหรับตำแหน่งจุดรับสินค้า (หมุด สีเขียว)
     pickupLocations.forEach((location, plates) {
-      final label = plates.join(', ');
+      final label = plates.toSet().join(', ');
       markers.add(Marker(
           point: location,
           width: 100,
@@ -264,14 +263,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
           child: _buildMarkerWithLabel(
             position: location,
             label: label,
-            icon: Icons.location_on,
-            iconColor: Colors.green, // änner สีเขียวสำหรับจุดรับ
+            icon: Icons.store,
+            iconColor: const Color.fromARGB(255, 162, 0, 255),
           )));
     });
 
     // 6. สร้าง Marker สำหรับตำแหน่งจุดส่งสินค้า (หมุด สีแดง)
     destinationLocations.forEach((location, plates) {
-      final label = plates.join(', ');
+      final label = plates.toSet().join(', ');
       markers.add(Marker(
           point: location,
           width: 100,
@@ -280,7 +279,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             position: location,
             label: label,
             icon: Icons.location_on,
-            iconColor: Colors.red, // änner สีแดงสำหรับจุดส่ง
+            iconColor: Colors.red, 
           )));
     });
 
@@ -294,8 +293,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: packages.isNotEmpty &&
-                      packages.first.riderLocation.latitude != 0.0
-                  ? packages.first.riderLocation
+                      packages.first.pickupLocation.latitude != 0.0 // เปลี่ยนจุดเริ่มต้นเป็น pickup
+                  ? packages.first.pickupLocation
                   : const latlong.LatLng(
                       16.4339, 102.8230), // Default Mahasarakham
               initialZoom: 14.0,
@@ -312,7 +311,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // --- (Widget อื่นๆ ไม่มีกํารเปลี่ยนแปลง) ---
+  // --- (Widget อื่นๆ ไม่มีการเปลี่ยนแปลง) ---
   Widget _buildStepItem({
     required String title,
     required IconData iconData,
@@ -413,6 +412,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
     required IconData icon,
     required Color iconColor,
   }) {
+    // ป้องกันไม่ให้แสดง label ว่างๆ
+    if (label.trim().isEmpty) {
+      return Icon(icon,
+            color: iconColor,
+            size: 40,
+            shadows: const [Shadow(color: Colors.black26, blurRadius: 5.0)]);
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

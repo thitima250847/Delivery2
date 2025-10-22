@@ -21,7 +21,7 @@ class TrackingScreen extends StatefulWidget {
 }
 
 class _TrackingScreenState extends State<TrackingScreen> {
-  // สีหลัก
+  // ... (State variables และฟังก์ชันส่วนใหญ่เหมือนเดิม) ...
   static const Color primaryGreen = Color(0xFF98C21D);
   static const Color darkGreenText = Color(0xFF98C21D);
   static const Color kYellow = Color(0xFFEDE500);
@@ -29,22 +29,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
   final MapController _mapController = MapController();
   StreamSubscription<Position>? _positionStreamSubscription;
 
-  // กล้อง
   final xpicker.ImagePicker _picker = xpicker.ImagePicker();
-
-  // Cloudinary
   final cloudinary = CloudinaryPublic('dwltvhlju', 'delivery', cache: false);
 
-  // สถานะ
   String _currentPackageStatus = 'accepted';
   bool _isLoading = false;
 
-  // ตำแหน่ง
   latlong.LatLng _currentRiderLocation = const latlong.LatLng(0, 0);
   latlong.LatLng _pickupLocation = const latlong.LatLng(0, 0);
   latlong.LatLng _dropoffLocation = const latlong.LatLng(0, 0);
 
-  // ข้อมูล
   String _senderName = 'กำลังโหลด...';
   String _senderPhone = 'กำลังโหลด...';
   String _pickupAddress = 'กำลังโหลด...';
@@ -54,11 +48,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
   String _productDescription = 'กำลังโหลด...';
   String _productImageUrl = "https://i.imgur.com/kS9YnSg.png";
 
-  // หลักฐานรูป
   String? _proofPhoto1Url;
   String? _proofPhoto2Url;
-  xpicker.XFile?
-      _localProofPhoto1; // <-- ตัวแปรใหม่สำหรับเก็บรูปที่ถ่ายชั่วคราว
+  xpicker.XFile? _localProofPhoto1;
 
   @override
   void initState() {
@@ -72,8 +64,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     _positionStreamSubscription?.cancel();
     super.dispose();
   }
-
-  // ----- LOCATION (เหมือนเดิม) -----
+  
+  // --- (โค้ดส่วน Logic ทั้งหมดยังเหมือนเดิม) ---
   Future<void> _updateRiderLocationInFirestore(latlong.LatLng location) async {
     try {
       await FirebaseFirestore.instance
@@ -125,7 +117,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     });
   }
 
-  // ----- FIRESTORE (เหมือนเดิม) -----
   void _fetchPackageDetails() {
     FirebaseFirestore.instance
         .collection('packages')
@@ -169,7 +160,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
     });
   }
 
-  // ----- PHOTO & STATUS UPDATE (เหมือนเดิม) -----
   Future<void> _takePhotoForPickup() async {
     final xpicker.XFile? imageFile = await _picker.pickImage(
       source: xpicker.ImageSource.camera,
@@ -283,12 +273,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-  // ====================== UI ======================
 
   @override
   Widget build(BuildContext context) {
     int activeStep;
     switch (_currentPackageStatus) {
+      // ไม่ได้ใช้ pending ในหน้านี้ เริ่มที่ accepted
       case 'accepted':
         activeStep = 2;
         break;
@@ -299,6 +289,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
         activeStep = 4;
         break;
       default:
+        // กรณีที่ไม่รู้จัก ให้เป็น 1 ไปก่อน
         activeStep = 1;
     }
 
@@ -338,91 +329,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ----- Map (ปรับปรุง) -----
-  Widget _buildMap() {
-    // สร้างลิสต์ของ Markers
-    List<Marker> markers = [];
+  // ----- VVVVVV ส่วนของ UI ที่แก้ไข VVVVVV -----
 
-    // 1. เพิ่ม Marker ของไรเดอร์เสมอ
-    if (_currentRiderLocation.latitude != 0.0) {
-      markers.add(
-        Marker(
-          point: _currentRiderLocation,
-          width: 40,
-          height: 40,
-          child: const Icon(
-            Icons.two_wheeler,
-            color: Colors.blue,
-            size: 30,
-          ),
-        ),
-      );
-    }
-
-    // 2. เช็คก่อนว่ามีพิกัดจุดรับหรือไม่ ถ้ามีถึงจะเพิ่ม Marker
-    if (_pickupLocation.latitude != 0.0 && _pickupLocation.longitude != 0.0) {
-      markers.add(
-        Marker(
-          point: _pickupLocation,
-          width: 40,
-          height: 40,
-          child: const Icon(
-            Icons.location_on,
-            color: Colors.red,
-            size: 40,
-          ),
-        ),
-      );
-    }
-
-    // 3. เช็คก่อนว่ามีพิกัดจุดส่งหรือไม่ ถ้ามีถึงจะเพิ่ม Marker (ถูกต้องอยู่แล้ว)
-    if (_dropoffLocation.latitude != 0.0 && _dropoffLocation.longitude != 0.0) {
-      markers.add(
-        Marker(
-          point: _dropoffLocation,
-          width: 40,
-          height: 40,
-          child: const Icon(
-            Icons.location_on,
-            color: darkGreenText,
-            size: 40,
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15.0),
-        child: SizedBox(
-          height: 250,
-          child: FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _currentRiderLocation.latitude != 0.0
-                  ? _currentRiderLocation
-                  : const latlong.LatLng(
-                      16.4339, 102.8230), // Default Mahasarakham
-              initialZoom: 15.0,
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              ),
-              // ใช้ Markers ที่สร้างและกรองแล้ว
-              MarkerLayer(markers: markers),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- (Widget ที่เหลือเหมือนเดิม) ---
   Widget _buildHeader(int activeStep) {
-    bool isActive(int step) => activeStep == step;
+    // ฟังก์ชัน connectorOnBefore ยังใช้เหมือนเดิม
     bool connectorOnBefore(int step) => activeStep > step;
+
     return Container(
       padding: const EdgeInsets.only(top: 50, bottom: 20),
       decoration: const BoxDecoration(color: kYellow),
@@ -436,17 +348,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   children: [
-                    _buildStepItem(
-                        Icons.hourglass_top, "รอรับออเดอร์", isActive(1)),
-                    _buildStepConnector(connectorOnBefore(1)),
-                    _buildStepItem(Icons.assignment_turned_in, "ไรเดอร์รับงาน",
-                        isActive(2)),
-                    _buildStepConnector(connectorOnBefore(2)),
-                    _buildStepItem(
-                        Icons.delivery_dining, "กำลังเดินทาง", isActive(3)),
-                    _buildStepConnector(connectorOnBefore(3)),
-                    _buildStepItem(
-                        Icons.check_circle, "ส่งเสร็จสิ้น", isActive(4)),
+                    // --- จุดที่แก้ไข 1: เปลี่ยนเงื่อนไขการเช็คสถานะ ---
+                    _buildStepItem(Icons.assignment_turned_in, "ไรเดอร์รับงาน", activeStep >= 2),
+                    _buildStepConnector(connectorOnBefore(2)), // เส้นเชื่อมจะเปิดเมื่อ step 3 เป็นต้นไป
+                    _buildStepItem(Icons.delivery_dining, "กำลังเดินทาง", activeStep >= 3),
+                    _buildStepConnector(connectorOnBefore(3)), // เส้นเชื่อมจะเปิดเมื่อ step 4
+                    _buildStepItem(Icons.check_circle, "ส่งเสร็จสิ้น", activeStep >= 4),
                   ],
                 ),
               ),
@@ -474,6 +381,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final Color color = isActive ? darkGreenText : Colors.grey.shade400;
     return Expanded(
       child: Column(
+        // เพิ่ม: จัดชิดบนเพื่อให้ความสูงคงที่
+        mainAxisAlignment: MainAxisAlignment.start, 
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -485,13 +394,17 @@ class _TrackingScreenState extends State<TrackingScreen> {
             child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+          // --- จุดที่แก้ไข 2: บังคับความสูงของ Text ---
+          SizedBox(
+            height: 30, // ความสูงที่พอสำหรับ 2 บรรทัด
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             ),
           ),
         ],
@@ -503,16 +416,21 @@ class _TrackingScreenState extends State<TrackingScreen> {
     return Expanded(
       child: Column(
         children: [
+           // --- จุดที่แก้ไข 3: จัดตำแหน่งเส้นเชื่อม ---
+          const SizedBox(height: 22), // เลื่อนเส้นลงมาให้อยู่กลางไอคอน
           Container(
             height: 3,
             color: isActive ? darkGreenText : Colors.grey.shade300,
           ),
-          const SizedBox(height: 42),
+          // ปรับ SizedBox ที่เหลือให้ความสูงโดยรวมยังสวยงาม
+          const SizedBox(height: 42), 
         ],
       ),
     );
   }
-
+  
+  // --- (Widget ที่เหลือทั้งหมดไม่มีการเปลี่ยนแปลง) ---
+  
   Widget _buildPageTitle(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
@@ -553,6 +471,78 @@ class _TrackingScreenState extends State<TrackingScreen> {
           fontWeight: FontWeight.bold,
           color: darkGreenText,
           fontSize: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMap() {
+    List<Marker> markers = [];
+    if (_currentRiderLocation.latitude != 0.0) {
+      markers.add(
+        Marker(
+          point: _currentRiderLocation,
+          width: 40,
+          height: 40,
+          child: const Icon(
+            Icons.two_wheeler,
+            color: Colors.blue,
+            size: 30,
+          ),
+        ),
+      );
+    }
+    if (_pickupLocation.latitude != 0.0 && _pickupLocation.longitude != 0.0) {
+      markers.add(
+        Marker(
+          point: _pickupLocation,
+          width: 40,
+          height: 40,
+          child: const Icon(
+            Icons.store,
+            color: Color.fromARGB(255, 0, 60, 255),
+            size: 40,
+          ),
+        ),
+      );
+    }
+    if (_dropoffLocation.latitude != 0.0 && _dropoffLocation.longitude != 0.0) {
+      markers.add(
+        Marker(
+          point: _dropoffLocation,
+          width: 40,
+          height: 40,
+          child: const Icon(
+            Icons.location_on,
+            color: Color.fromARGB(255, 255, 0, 0),
+            size: 40,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15.0),
+        child: SizedBox(
+          height: 250,
+          child: FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentRiderLocation.latitude != 0.0
+                  ? _currentRiderLocation
+                  : const latlong.LatLng(
+                      16.4339, 102.8230), // Default Mahasarakham
+              initialZoom: 15.0,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              ),
+              MarkerLayer(markers: markers),
+            ],
+          ),
         ),
       ),
     );
@@ -789,8 +779,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
         child: Column(
           children: [
             _buildAddressInfo(
-              icon: Icons.location_on,
-              iconColor: Colors.red,
+              icon: Icons.store,
+              iconColor: const Color.fromARGB(255, 162, 0, 255),
               title: "จุดรับสินค้า (ผู้ส่ง): $_pickupAddress",
               name: _senderName,
               phone: _senderPhone,
@@ -799,7 +789,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             const Divider(height: 32, color: Colors.grey),
             _buildAddressInfo(
               icon: Icons.location_on,
-              iconColor: darkGreenText,
+              iconColor: const Color.fromARGB(255, 255, 0, 0),
               title: "จุดส่งสินค้า (ผู้รับ): $_dropoffAddress",
               name: _receiverName,
               phone: _receiverPhone,

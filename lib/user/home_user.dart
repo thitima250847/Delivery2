@@ -9,7 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/tracking.dart';
-import 'package:delivery/user/status.dart'; // änner เพิ่ม: import StatusScreen
+import 'package:delivery/user/status.dart' hide TrackingScreen; // änner เพิ่ม: import StatusScreen
 
 class DeliveryPage extends StatefulWidget {
   const DeliveryPage({super.key});
@@ -94,10 +94,21 @@ class _DeliveryPageState extends State<DeliveryPage> {
     
     if (isReceiving) {
       // 1. สำหรับ 'สินค้าที่ต้องรับ' (ผู้ใช้คือ Receiver)
+      // เราไม่จำเป็นต้องหา ID เพื่อแสดงรายการทั้งหมด แต่จะหาแค่เพื่อแสดง Snackbar หากไม่มี
       pkgId = await _findActivePackageId(
         userField: 'receiver_user_id', // ค้นหาในฐานะผู้รับ
         statuses: const ['accepted', 'on_delivery'],
       );
+      
+      // *** สำหรับโหมดรับสินค้า ให้ข้ามการตรวจสอบ pkgId และนำทางไป StatusScreen ทันที ***
+      if (!mounted) return;
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const StatusScreen(packageId: null)), // ส่ง null เพื่อเข้าสู่โหมดรายการทั้งหมด
+      );
+      return; // ออกจากฟังก์ชันหลังจากนำทาง
+      
     } else {
       // 2. สำหรับ 'สินค้าที่กำลังส่ง' (ผู้ใช้คือ Sender)
       pkgId = await _findActivePackageId(
@@ -108,12 +119,10 @@ class _DeliveryPageState extends State<DeliveryPage> {
 
     if (!mounted) return;
     
-    // 3. ตรวจสอบค่า pkgId ก่อนนำทาง (แก้ String? can't be assigned to String)
+    // 3. ตรวจสอบค่า pkgId ก่อนนำทาง (สำหรับโหมดส่งสินค้า)
     if (pkgId == null) {
       // แสดงข้อความแจ้งเตือนที่เหมาะสม
-      final String message = isReceiving 
-          ? 'ยังไม่มีสินค้ากำลังจัดส่งมาถึงคุณ'
-          : 'ยังไม่มีออเดอร์ที่กำลังดำเนินการ';
+      final String message = 'ยังไม่มีออเดอร์ที่กำลังดำเนินการ';
           
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -123,28 +132,25 @@ class _DeliveryPageState extends State<DeliveryPage> {
       );
 
       // หากไม่มี Package ที่กำลังใช้งานอยู่ ให้ส่ง packageId เป็น null ไปยัง TrackingScreen
-      if (!isReceiving) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => TrackingScreen(packageId: null)),
-        );
-      }
+      // ใช้ TrackingScreen แทน StatusScreen สำหรับรายการ 'สินค้าที่กำลังส่ง'
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const TrackingScreen(packageId: null)),
+      );
       return;
     }
 
-    // 4. นำทางไปยังหน้าจอที่ถูกต้อง (ใช้ pkgId! เพื่อยืนยันว่าไม่ใช่ null)
-    if (isReceiving) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => StatusScreen(packageId: pkgId!)),
-      );
-    } else {
+    // 4. นำทางไปยังหน้าจอที่ถูกต้อง (สำหรับโหมดส่งสินค้าที่มี packageId)
+    // สำหรับ isReceiving ถูกจัดการไปแล้ว
+    if (!isReceiving) { // ควรเป็น else if ที่เหลือ
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => TrackingScreen(packageId: pkgId!)),
       );
     }
   }
+
+  // ... (โค้ดส่วนอื่น ๆ ที่เหลือ)
 
   @override
   Widget build(BuildContext context) {
@@ -416,3 +422,4 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 }
+

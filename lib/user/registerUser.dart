@@ -143,7 +143,7 @@ class _RegisterUserState extends State<RegisterUser> {
     }
   }
 
-  Future<void> _onRegisterPressed() async {
+Future<void> _onRegisterPressed() async {
     if (_submitting) return;
 
     final name = _nameCtl.text.trim();
@@ -194,11 +194,21 @@ class _RegisterUserState extends State<RegisterUser> {
 
       final passwordHash = _hashPasswordOnly(password);
 
-      // --- แก้ไข: รวม Transaction การเขียนข้อมูล ---
+      // VVVVVVVVVVVVVVVVVV โค้ดส่วนที่แก้ไข VVVVVVVVVVVVVVVVVV
       await firestore.runTransaction((transaction) async {
         final userRef = firestore.collection('users').doc(uid);
+        final gps = _parseGps(gpsRaw);
 
-        // 1. สร้างเอกสารผู้ใช้
+        // เตรียมข้อมูลที่อยู่ไว้ล่วงหน้า
+        List<Map<String, dynamic>> initialAddresses = [];
+        if (gps.lat != null && gps.lng != null && gps.place != null) {
+          initialAddresses.add({
+            'address_text': gps.place,
+            'gps': {'lat': gps.lat, 'lng': gps.lng},
+          });
+        }
+
+        // สร้างเอกสารผู้ใช้พร้อมที่อยู่ "ในขั้นตอนเดียว"
         transaction.set(userRef, {
           'user_id': uid,
           'name': name,
@@ -208,23 +218,10 @@ class _RegisterUserState extends State<RegisterUser> {
           'auth_uid': uid,
           'password_hash': passwordHash,
           'created_at': FieldValue.serverTimestamp(),
-          'addresses': [], // เริ่มต้นด้วย array ว่าง
+          'addresses': initialAddresses, // <-- ใส่ที่อยู่ตรงนี้เลย ไม่ต้อง update
         });
-
-        // 2. ถ้ามี GPS, ให้อัปเดต array ที่อยู่
-        final gps = _parseGps(gpsRaw); // <-- แก้ไข: เรียกใช้ _parseGps ที่นี่
-        if (gps.lat != null && gps.lng != null && gps.place != null) {
-          transaction.update(userRef, {
-            'addresses': FieldValue.arrayUnion([
-              {
-                'address_text': gps.place,
-                'gps': {'lat': gps.lat, 'lng': gps.lng},
-              },
-            ]),
-          });
-        }
       });
-      // ---------------------------------------------
+      // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
       if (!mounted) return;
       _showSnack('สมัครสมาชิกสำเร็จ', ok: true);
@@ -246,7 +243,6 @@ class _RegisterUserState extends State<RegisterUser> {
       if (mounted) setState(() => _submitting = false);
     }
   }
-
   Future<void> _selectGpsFromMap() async {
     final result = await Navigator.push(
       context,

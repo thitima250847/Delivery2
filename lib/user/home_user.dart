@@ -1,5 +1,4 @@
-// home_user.dart
-
+// Your home_user.dart (DeliveryPage) code
 import 'package:delivery/user/receive.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -37,7 +36,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
         return;
       }
 
-      // **ส่วนนี้คือส่วนที่ดึงที่อยู่แรก (ที่อยู่ปัจจุบัน) มาแสดง**
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
 
@@ -50,7 +48,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
           final firstAddress = addresses[0] as Map<String, dynamic>;
           addressText = firstAddress['address_text'] as String?;
         }
-      // **สิ้นสุดส่วนที่ดึงที่อยู่แรก (ที่อยู่ปัจจุบัน) มาแสดง**
 
         setState(() {
           _userName = name;
@@ -61,11 +58,12 @@ class _DeliveryPageState extends State<DeliveryPage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
+      // ดักจับ error ที่เกิดขึ้นใน _fetchUserData()
+      print("Error fetching user data: $e");
       setState(() => _isLoading = false);
     }
   }
 
-  // änner แก้ไข: ใช้ userField แทน customerField
   Future<String?> _findActivePackageId({
     required String userField,
     required List<String> statuses,
@@ -88,40 +86,33 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  // änner แก้ไข: นำทางไปหน้า Tracking Screen หรือ Status Screen โดยจัดการค่า null
   Future<void> _navigateToTrackingPage(BuildContext context, {required bool isReceiving}) async {
     String? pkgId;
     
     if (isReceiving) {
-      // 1. สำหรับ 'สินค้าที่ต้องรับ' (ผู้ใช้คือ Receiver)
-      // เราไม่จำเป็นต้องหา ID เพื่อแสดงรายการทั้งหมด แต่จะหาแค่เพื่อแสดง Snackbar หากไม่มี
       pkgId = await _findActivePackageId(
-        userField: 'receiver_user_id', // ค้นหาในฐานะผู้รับ
+        userField: 'receiver_user_id',
         statuses: const ['accepted', 'on_delivery'],
       );
       
-      // *** สำหรับโหมดรับสินค้า ให้ข้ามการตรวจสอบ pkgId และนำทางไป StatusScreen ทันที ***
       if (!mounted) return;
       
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const StatusScreen(packageId: null)), // ส่ง null เพื่อเข้าสู่โหมดรายการทั้งหมด
+        MaterialPageRoute(builder: (_) => const StatusScreen(packageId: null)),
       );
-      return; // ออกจากฟังก์ชันหลังจากนำทาง
+      return;
       
     } else {
-      // 2. สำหรับ 'สินค้าที่กำลังส่ง' (ผู้ใช้คือ Sender)
       pkgId = await _findActivePackageId(
-        userField: 'sender_user_id', // ค้นหาในฐานะผู้ส่ง
+        userField: 'sender_user_id',
         statuses: const ['pending', 'accepted', 'on_delivery'],
       );
     }
 
     if (!mounted) return;
     
-    // 3. ตรวจสอบค่า pkgId ก่อนนำทาง (สำหรับโหมดส่งสินค้า)
     if (pkgId == null) {
-      // แสดงข้อความแจ้งเตือนที่เหมาะสม
       final String message = 'ยังไม่มีออเดอร์ที่กำลังดำเนินการ';
           
       ScaffoldMessenger.of(context).showSnackBar(
@@ -131,8 +122,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
         ),
       );
 
-      // หากไม่มี Package ที่กำลังใช้งานอยู่ ให้ส่ง packageId เป็น null ไปยัง TrackingScreen
-      // ใช้ TrackingScreen แทน StatusScreen สำหรับรายการ 'สินค้าที่กำลังส่ง'
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const TrackingScreen(packageId: null)),
@@ -140,9 +129,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
       return;
     }
 
-    // 4. นำทางไปยังหน้าจอที่ถูกต้อง (สำหรับโหมดส่งสินค้าที่มี packageId)
-    // สำหรับ isReceiving ถูกจัดการไปแล้ว
-    if (!isReceiving) { // ควรเป็น else if ที่เหลือ
+    if (!isReceiving) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => TrackingScreen(packageId: pkgId!)),
@@ -150,35 +137,51 @@ class _DeliveryPageState extends State<DeliveryPage> {
     }
   }
 
-  // ... (โค้ดส่วนอื่น ๆ ที่เหลือ)
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildTopSection(),
-                  _buildButtonSection(context),
-                  const SizedBox(height: 20),
-                  _buildAdCard(
-                    imageUrl:
-                        'https://moviedelic.com/wp-content/uploads/2025/05/Mad-Unicornuniversal-base_na_01_zxx-1-e1748597704822.jpg',
-                    title: 'TUNDER EXPRESS',
-                  ),
-                  const SizedBox(height: 20),
-                  _buildAdCard(
-                    imageUrl: 'https://img.youtube.com/vi/Tb_H0-BavZY/sddefault.jpg',
-                    title: 'กว่าจะเป็น ‘สันติ’',
-                  ),
-                ],
+    try { // <--- ADDED: เพิ่ม try block
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildTopSection(),
+                    _buildButtonSection(context),
+                    const SizedBox(height: 20),
+                    _buildAdCard(
+                      imageUrl:
+                          'https://moviedelic.com/wp-content/uploads/2025/05/Mad-Unicornuniversal-base_na_01_zxx-1-e1748597704822.jpg',
+                      title: 'TUNDER EXPRESS',
+                    ),
+                    const SizedBox(height: 20),
+                    _buildAdCard(
+                      imageUrl: 'https://img.youtube.com/vi/Tb_H0-BavZY/sddefault.jpg',
+                      title: 'กว่าจะเป็น ‘สันติ’',
+                    ),
+                  ],
+                ),
               ),
+        bottomNavigationBar: _buildBottomNavigationBar(context),
+      );
+    } catch (e, stackTrace) { // <--- ADDED: เพิ่ม catch block
+      print("--- FATAL ERROR IN DeliveryPage BUILD ---");
+      print(e.toString());
+      print(stackTrace);
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              "เกิดข้อผิดพลาดในการสร้างหน้าจอ: \n${e.toString()}\n\nดูใน Console เพื่อรายละเอียดเพิ่มเติม",
+              style: const TextStyle(color: Colors.red, fontSize: 16),
+              textAlign: TextAlign.center,
             ),
-      bottomNavigationBar: _buildBottomNavigationBar(context),
-    );
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildTopSection() {
@@ -405,6 +408,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
       onTap: (index) {
         switch (index) {
           case 0:
+            // Already on Home, do nothing
             break;
           case 1:
             Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
@@ -422,4 +426,3 @@ class _DeliveryPageState extends State<DeliveryPage> {
     );
   }
 }
-

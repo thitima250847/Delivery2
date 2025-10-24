@@ -46,8 +46,7 @@ class _StatusScreenState extends State<StatusScreen> {
 
   String _str(dynamic v) => (v == null) ? '' : v.toString();
 
-  Map<String, dynamic> _normalizeRider(Map<String, dynamic> riderDoc,
-      {Map<String, dynamic>? fromPackage}) {
+  Map<String, dynamic> _normalizeRider(Map<String, dynamic> riderDoc) {
     return {
       'name': _str(riderDoc['name']),
       'phone_number': _str(riderDoc['phone_number']),

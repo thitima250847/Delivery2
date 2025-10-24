@@ -21,7 +21,7 @@ class TrackingScreen extends StatefulWidget {
 }
 
 class _TrackingScreenState extends State<TrackingScreen> {
-  // ... (State variables และฟังก์ชันส่วนใหญ่เหมือนเดิม) ...
+  // --- State variables ---
   static const Color primaryGreen = Color(0xFF98C21D);
   static const Color darkGreenText = Color(0xFF98C21D);
   static const Color kYellow = Color(0xFFEDE500);
@@ -34,6 +34,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   String _currentPackageStatus = 'accepted';
   bool _isLoading = false;
+
+  // State variables for proximity check
+  bool _isNearPickup = false;
+  bool _isNearDropoff = false;
 
   latlong.LatLng _currentRiderLocation = const latlong.LatLng(0, 0);
   latlong.LatLng _pickupLocation = const latlong.LatLng(0, 0);
@@ -64,8 +68,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
     _positionStreamSubscription?.cancel();
     super.dispose();
   }
-  
-  // --- (โค้ดส่วน Logic ทั้งหมดยังเหมือนเดิม) ---
+
+  // --- Logic Functions ---
+
   Future<void> _updateRiderLocationInFirestore(latlong.LatLng location) async {
     try {
       await FirebaseFirestore.instance
@@ -110,8 +115,29 @@ class _TrackingScreenState extends State<TrackingScreen> {
       if (!mounted) return;
       final newLocation = latlong.LatLng(position.latitude, position.longitude);
       _updateRiderLocationInFirestore(newLocation);
+
+      bool isNearPickup = false;
+      if (_pickupLocation.latitude != 0.0) {
+        final distance = Geolocator.distanceBetween(
+          newLocation.latitude, newLocation.longitude,
+          _pickupLocation.latitude, _pickupLocation.longitude,
+        );
+        isNearPickup = distance <= 20;
+      }
+
+      bool isNearDropoff = false;
+      if (_dropoffLocation.latitude != 0.0) {
+        final distance = Geolocator.distanceBetween(
+          newLocation.latitude, newLocation.longitude,
+          _dropoffLocation.latitude, _dropoffLocation.longitude,
+        );
+        isNearDropoff = distance <= 20;
+      }
+
       setState(() {
         _currentRiderLocation = newLocation;
+        _isNearPickup = isNearPickup;
+        _isNearDropoff = isNearDropoff;
         _mapController.move(_currentRiderLocation, _mapController.camera.zoom);
       });
     });
@@ -273,12 +299,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-
+  // --- Build Method ---
   @override
   Widget build(BuildContext context) {
     int activeStep;
     switch (_currentPackageStatus) {
-      // ไม่ได้ใช้ pending ในหน้านี้ เริ่มที่ accepted
       case 'accepted':
         activeStep = 2;
         break;
@@ -289,7 +314,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
         activeStep = 4;
         break;
       default:
-        // กรณีที่ไม่รู้จัก ให้เป็น 1 ไปก่อน
         activeStep = 1;
     }
 
@@ -329,10 +353,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ----- VVVVVV ส่วนของ UI ที่แก้ไข VVVVVV -----
+  // --- UI Widget Builders ---
 
   Widget _buildHeader(int activeStep) {
-    // ฟังก์ชัน connectorOnBefore ยังใช้เหมือนเดิม
     bool connectorOnBefore(int step) => activeStep > step;
 
     return Container(
@@ -348,11 +371,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   children: [
-                    // --- จุดที่แก้ไข 1: เปลี่ยนเงื่อนไขการเช็คสถานะ ---
                     _buildStepItem(Icons.assignment_turned_in, "ไรเดอร์รับงาน", activeStep >= 2),
-                    _buildStepConnector(connectorOnBefore(2)), // เส้นเชื่อมจะเปิดเมื่อ step 3 เป็นต้นไป
+                    _buildStepConnector(connectorOnBefore(2)),
                     _buildStepItem(Icons.delivery_dining, "กำลังเดินทาง", activeStep >= 3),
-                    _buildStepConnector(connectorOnBefore(3)), // เส้นเชื่อมจะเปิดเมื่อ step 4
+                    _buildStepConnector(connectorOnBefore(3)),
                     _buildStepItem(Icons.check_circle, "ส่งเสร็จสิ้น", activeStep >= 4),
                   ],
                 ),
@@ -381,8 +403,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final Color color = isActive ? darkGreenText : Colors.grey.shade400;
     return Expanded(
       child: Column(
-        // เพิ่ม: จัดชิดบนเพื่อให้ความสูงคงที่
-        mainAxisAlignment: MainAxisAlignment.start, 
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -394,9 +415,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
             child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(height: 8),
-          // --- จุดที่แก้ไข 2: บังคับความสูงของ Text ---
           SizedBox(
-            height: 30, // ความสูงที่พอสำหรับ 2 บรรทัด
+            height: 30,
             child: Text(
               label,
               textAlign: TextAlign.center,
@@ -416,21 +436,17 @@ class _TrackingScreenState extends State<TrackingScreen> {
     return Expanded(
       child: Column(
         children: [
-           // --- จุดที่แก้ไข 3: จัดตำแหน่งเส้นเชื่อม ---
-          const SizedBox(height: 22), // เลื่อนเส้นลงมาให้อยู่กลางไอคอน
+          const SizedBox(height: 22),
           Container(
             height: 3,
             color: isActive ? darkGreenText : Colors.grey.shade300,
           ),
-          // ปรับ SizedBox ที่เหลือให้ความสูงโดยรวมยังสวยงาม
-          const SizedBox(height: 42), 
+          const SizedBox(height: 42),
         ],
       ),
     );
   }
-  
-  // --- (Widget ที่เหลือทั้งหมดไม่มีการเปลี่ยนแปลง) ---
-  
+
   Widget _buildPageTitle(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
@@ -700,25 +716,47 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Widget _buildPhotoUploaders() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
+      child: Column(
         children: [
-          _buildPhotoPlaceholder(
-            localImageFile: _localProofPhoto1,
-            imageUrl: _proofPhoto1Url,
-            label: "ถ่ายรูป ณ จุดรับ",
-            onCameraTap: _takePhotoForPickup,
-            canTap: _proofPhoto1Url == null &&
-                _localProofPhoto1 == null &&
-                _currentPackageStatus == 'accepted',
+          Row(
+            children: [
+              _buildPhotoPlaceholder(
+                localImageFile: _localProofPhoto1,
+                imageUrl: _proofPhoto1Url,
+                label: "ถ่ายรูป ณ จุดรับ",
+                onCameraTap: _takePhotoForPickup,
+                canTap: _proofPhoto1Url == null &&
+                    _localProofPhoto1 == null &&
+                    _currentPackageStatus == 'accepted' &&
+                    _isNearPickup,
+              ),
+              const SizedBox(width: 16),
+              _buildPhotoPlaceholder(
+                imageUrl: _proofPhoto2Url,
+                label: "ถ่ายรูป ณ จุดส่ง",
+                onCameraTap: _takeAndUploadPhotoForDropoff,
+                canTap: _proofPhoto2Url == null &&
+                    _currentPackageStatus == 'on_delivery' &&
+                    _isNearDropoff,
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          _buildPhotoPlaceholder(
-            imageUrl: _proofPhoto2Url,
-            label: "ถ่ายรูป ณ จุดส่ง",
-            onCameraTap: _takeAndUploadPhotoForDropoff,
-            canTap: _proofPhoto2Url == null &&
-                _currentPackageStatus == 'on_delivery',
-          ),
+          if (_currentPackageStatus == 'accepted' && !_isNearPickup)
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Text(
+                'กรุณาเข้าใกล้จุดรับสินค้าในระยะ 20 เมตรเพื่อถ่ายรูป',
+                style: TextStyle(color: Colors.orange, fontSize: 12),
+              ),
+            ),
+          if (_currentPackageStatus == 'on_delivery' && !_isNearDropoff)
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Text(
+                'กรุณาเข้าใกล้จุดส่งสินค้าในระยะ 20 เมตรเพื่อถ่ายรูป',
+                style: TextStyle(color: Colors.orange, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );

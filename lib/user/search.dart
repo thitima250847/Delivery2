@@ -15,8 +15,9 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  List<Map<String, dynamic>> _searchResults = [];
-  bool _isSearching = false;
+  List<Map<String, dynamic>> _allUsers = []; // <-- ADDED: เก็บรายชื่อผู้ใช้ทั้งหมด
+  List<Map<String, dynamic>> _searchResults = []; // <-- ใช้สำหรับแสดงผล
+  bool _isLoading = true; // <-- MODIFIED: เปลี่ยนเป็น isLoading สำหรับการโหลดครั้งแรก
 
   String? _myPhotoUrl;
 
@@ -24,6 +25,7 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
   void initState() {
     super.initState();
     _loadMyAvatar();
+    _fetchAllUsers(); // <-- ADDED: เรียกฟังก์ชันโหลดผู้ใช้ทั้งหมดตอนเริ่ม
   }
 
   @override
@@ -46,29 +48,19 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
     } catch (_) {}
   }
 
-  Future<void> _searchUsers(String query) async {
-    if (query.isEmpty) {
-      setState(() => _searchResults = []);
-      return;
-    }
-    setState(() => _isSearching = true);
-
+  // --- 1. สร้างฟังก์ชันสำหรับดึงผู้ใช้ทั้งหมด ---
+  Future<void> _fetchAllUsers() async {
+    setState(() => _isLoading = true);
     try {
       final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('phone_number', isGreaterThanOrEqualTo: query)
-          .where('phone_number', isLessThanOrEqualTo: '$query\uf8ff')
-          .get();
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance.collection('users').get();
 
       List<Map<String, dynamic>> users = querySnapshot.docs
           .where((doc) => doc.id != currentUserId)
           .map((doc) {
             Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-            // ***** 1. เพิ่ม ID ของเอกสารเข้าไปในข้อมูล *****
             data['user_id'] = doc.id;
-            // ********************************************
-
+            
             String addressText = 'ไม่ระบุที่อยู่';
             if (data['addresses'] != null && (data['addresses'] as List).isNotEmpty) {
               addressText = (data['addresses'][0] as Map<String, dynamic>)['address_text'] ?? 'ไม่ระบุที่อยู่';
@@ -79,13 +71,35 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
           }).toList();
 
       setState(() {
-        _searchResults = users;
+        _allUsers = users;
+        _searchResults = users; // ตอนแรกให้ผลลัพธ์การค้นหาเป็น user ทั้งหมด
       });
     } catch (e) {
-      print("เกิดข้อผิดพลาดในการค้นหา: $e");
+      print("เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้ทั้งหมด: $e");
     } finally {
-      if (mounted) setState(() => _isSearching = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // --- 2. แก้ไขฟังก์ชันค้นหาให้กรองจาก List ที่มีอยู่ ---
+  void _filterUsers(String query) {
+    if (query.isEmpty) {
+      // ถ้าช่องค้นหาว่าง ให้แสดงรายชื่อทั้งหมด
+      setState(() {
+        _searchResults = _allUsers;
+      });
+      return;
+    }
+
+    // กรองรายชื่อจาก _allUsers ที่มีอยู่แล้ว
+    final List<Map<String, dynamic>> filteredUsers = _allUsers.where((user) {
+      final phoneNumber = user['phone_number'] as String? ?? '';
+      return phoneNumber.contains(query);
+    }).toList();
+
+    setState(() {
+      _searchResults = filteredUsers;
+    });
   }
 
   @override
@@ -122,29 +136,28 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
             TextField(
               controller: _searchController,
               keyboardType: TextInputType.phone,
-              autofocus: true,
-              onChanged: _searchUsers,
+              onChanged: _filterUsers, // <-- MODIFIED: เรียกใช้ฟังก์ชันกรอง
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear),
                   onPressed: () {
                     _searchController.clear();
-                    _searchUsers('');
+                    _filterUsers(''); // <-- MODIFIED: เรียกฟังก์ชันกรองด้วยค่าว่าง
                   },
                 ),
                 filled: true,
                 fillColor: Colors.grey[200],
-                hintText: "กรอกเบอร์โทรศัพท์ผู้รับ",
+                hintText: "กรอกเบอร์โทรศัพท์ผู้รับเพื่อค้นหา",
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
               ),
             ),
             const SizedBox(height: 24.0),
             Expanded(
-              child: _isSearching
+              child: _isLoading // <-- MODIFIED: เช็ค isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _searchResults.isEmpty
-                      ? Center(child: Text(_searchController.text.isEmpty ? 'กรุณาค้นหาด้วยเบอร์โทรศัพท์' : 'ไม่พบผู้ใช้', style: const TextStyle(color: Colors.grey, fontSize: 16)))
+                      ? const Center(child: Text('ไม่พบผู้ใช้', style: TextStyle(color: Colors.grey, fontSize: 16)))
                       : ListView.builder(
                           itemCount: _searchResults.length,
                           itemBuilder: (context, index) {
@@ -164,7 +177,6 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
     final String phone = user['phone_number'] ?? 'ไม่มีเบอร์';
     final String address = user['address'] ?? 'ไม่ระบุที่อยู่';
     final String? imageUrl = user['profile_image'] as String?;
-    // ***** 2. ดึง user_id ออกมา *****
     final String userId = user['user_id'] ?? '';
 
     return Padding(
@@ -185,7 +197,6 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
         subtitle: Text(phone, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
         trailing: ElevatedButton(
           onPressed: () {
-            // ***** 3. เพิ่ม user_id เข้าไปในข้อมูลที่จะส่ง *****
             final recipientData = {
               'user_id': userId,
               'name': name,
@@ -194,8 +205,7 @@ class _SearchRecipientScreenState extends State<SearchRecipientScreen> {
               'imageUrl': imageUrl ?? '',
               'addresses': user['addresses'],
             };
-            // *************************************************
-
+            
             Navigator.push(
               context,
               MaterialPageRoute(

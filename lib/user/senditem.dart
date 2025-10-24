@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/receive.dart';
+import 'package:delivery/user/search.dart';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -213,12 +214,7 @@ class _SendItemPageState extends State<SendItemPage> {
       await FirebaseFirestore.instance.collection('packages').add(packageData);
 
       _showSnack('สร้างรายการส่งสินค้าสำเร็จ!', isSuccess: true);
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const ReceivePage()),
-        (route) => false,
-      );
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivePage()));
 
     } catch (e) {
       _showSnack('เกิดข้อผิดพลาดในการบันทึกข้อมูล: $e');
@@ -227,8 +223,6 @@ class _SendItemPageState extends State<SendItemPage> {
     }
   }
 
-// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
-// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +233,7 @@ class _SendItemPageState extends State<SendItemPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => ReceivePage(),
+          onPressed: () =>  Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchRecipientScreen())),
         ),
         title: const Text(
           'ส่งสินค้า',

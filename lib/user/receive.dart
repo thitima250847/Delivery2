@@ -1,5 +1,7 @@
+// Your ReceivePage.dart code (already corrected in previous turn)
 import 'package:delivery/user/detail.dart';
 import 'package:delivery/user/history.dart';
+import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart';
 import 'package:delivery/user/search.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +34,7 @@ class _ReceivePageState extends State<ReceivePage> {
                   icon: const Icon(Icons.arrow_back_ios,
                       color: Colors.black, size: 24),
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const DeliveryPage()));
                   },
                 ),
                 const SizedBox(width: 10),
@@ -60,9 +62,7 @@ class _ReceivePageState extends State<ReceivePage> {
                   .collection('packages')
                   .where('sender_user_id',
                       isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-                  // ***** แก้ไข: กรองเอาสถานะ 'completed' ออกไป *****
                   .where('status', whereIn: ['pending', 'accepted', 'on_delivery'])
-                  // .where('status', isNotEqualTo: 'completed') // อีกวิธี (ต้องใช้ index)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -77,16 +77,6 @@ class _ReceivePageState extends State<ReceivePage> {
                 }
 
                 final activePackages = snapshot.data!.docs;
-
-                // ลบการกรองซ้ำซ้อนในโค้ดเดิมออก เนื่องจากเรากรองด้วย Firestore query แล้ว
-                /*
-                final allPackages = snapshot.data!.docs;
-                final activePackages = allPackages.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return data['status'] != 'completed';
-                }).toList();
-                */
-
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   itemCount: activePackages.length,
@@ -110,7 +100,8 @@ class _ReceivePageState extends State<ReceivePage> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushReplacement(
+                  // This is correct: pushes SearchRecipientScreen on top
+                  Navigator.push( 
                     context,
                     MaterialPageRoute(
                         builder: (context) => const SearchRecipientScreen()),
@@ -143,7 +134,7 @@ class _ReceivePageState extends State<ReceivePage> {
 
   Widget _buildDeliveryCard(
     BuildContext context, {
-    required String packageId, // รับ packageId
+    required String packageId,
     required Map<String, dynamic> packageData,
   }) {
     final senderInfo =
@@ -153,7 +144,7 @@ class _ReceivePageState extends State<ReceivePage> {
     final imageUrl = packageData['proof_image_url'] as String? ?? '';
 
     final senderLocation = senderInfo['address'] ?? 'ไม่ระบุ';
-    final senderName = senderInfo['name'] ?? 'ไม่ระบุ';
+    final senderName = senderInfo['name'] ?? 'ไม่ระระบุ';
     final senderPhone = senderInfo['phone'] ?? 'ไม่ระบุ';
 
     final recipientLocation = receiverInfo['address'] ?? 'ไม่ระบุ';
@@ -219,7 +210,6 @@ class _ReceivePageState extends State<ReceivePage> {
                     height: 40,
                     child: ElevatedButton(
                       onPressed: () {
-                        // ***** ส่ง packageId ไปยัง DetailPage *****
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -380,4 +370,3 @@ class CustomAppBarClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => true;
 }
-

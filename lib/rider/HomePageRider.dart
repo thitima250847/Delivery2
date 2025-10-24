@@ -62,10 +62,6 @@ class _HomePageRiderState extends State<HomePageRider> {
     }
   }
 
- // HomePageRider.dart
-
-// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
-
   // ฟังก์ชันสำหรับรับ Order (ฉบับแก้ไข)
   Future<void> _acceptOrder(String packageId) async {
     try {
@@ -89,7 +85,8 @@ class _HomePageRiderState extends State<HomePageRider> {
       }
 
       // 2. änner เพิ่ม: ดึงข้อมูลป้ายทะเบียนของไรเดอร์
-      final riderDoc = await FirebaseFirestore.instance.collection('riders').doc(riderId).get();
+      final riderDoc =
+          await FirebaseFirestore.instance.collection('riders').doc(riderId).get();
       if (!riderDoc.exists) {
         throw Exception('ไม่พบโปรไฟล์ของไรเดอร์');
       }
@@ -101,10 +98,10 @@ class _HomePageRiderState extends State<HomePageRider> {
           .collection('packages')
           .doc(packageId)
           .update({
-            'status': 'accepted', 
-            'rider_id': riderId,
-            'rider_plate': riderPlate, // <-- บันทึกป้ายทะเบียนตรงนี้
-          });
+        'status': 'accepted',
+        'rider_id': riderId,
+        'rider_plate': riderPlate, // <-- บันทึกป้ายทะเบียนตรงนี้
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -133,11 +130,8 @@ class _HomePageRiderState extends State<HomePageRider> {
     }
   }
 
-// ... (โค้ดส่วนอื่น ๆ เหมือนเดิม) ...
-
   @override
   Widget build(BuildContext context) {
-    print(">>> RIDER HOME SCREEN BUILD STARTED"); // โค้ด Debug
     return Scaffold(
       backgroundColor: Colors.grey[200], // ใช้สีให้เข้ากัน
       body: Column(
@@ -153,10 +147,6 @@ class _HomePageRiderState extends State<HomePageRider> {
                   .where('status', isEqualTo: 'pending')
                   .snapshots(),
               builder: (context, snapshot) {
-                // โค้ด Debug
-                print("--- StreamBuilder Rebuild ---");
-                // ... (โค้ด Debug เดิม)
-
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -253,14 +243,16 @@ class _HomePageRiderState extends State<HomePageRider> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => TrackingScreen(packageId: _ongoingPackageId!),
+                      builder: (_) =>
+                          TrackingScreen(packageId: _ongoingPackageId!),
                     ),
                   );
                 },
                 icon: const Icon(Icons.delivery_dining, color: Colors.white),
                 label: const Text(
                   "ดูรายการที่ต้องส่ง (งานค้าง)",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kTextBlack,
@@ -308,6 +300,8 @@ class _HomePageRiderState extends State<HomePageRider> {
     final receiverInfo =
         package['receiver_info'] as Map<String, dynamic>? ?? {};
     final imageUrl = package['proof_image_url'] as String? ?? '';
+    final packageDescription =
+        package['package_description'] as String? ?? 'ไม่มีรายละเอียด';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -324,6 +318,23 @@ class _HomePageRiderState extends State<HomePageRider> {
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
                 height: 1.2,
+              ),
+            ),
+            const Divider(height: 24),
+            Text.rich(
+              TextSpan(
+                text: 'ชื่อสินค้า: ',
+                style: const TextStyle(color: Colors.black54, fontSize: 14),
+                children: [
+                  TextSpan(
+                    text: packageDescription,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -395,6 +406,38 @@ class _HomePageRiderState extends State<HomePageRider> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // ===========================================
+                // === ปุ่มดูแผนที่ (เพิ่มใหม่) ===
+                // ===========================================
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // ** เพิ่มโค้ดสำหรับเปิดแอปแผนที่ตรงนี้ **
+                    // ตัวอย่าง: Navigator.push(context, MaterialPageRoute(builder: (_) => MapScreen(...)));
+                  },
+                  icon: const Icon(Icons.map_outlined, color: Colors.white),
+                  label: const Text(
+                    "ดูแผนที่",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green, // สีเขียว
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8), // เพิ่มระยะห่างระหว่างปุ่ม
+                // ===========================================
+                // === ปุ่มรับ Order (ของเดิม) ===
+                // ===========================================
                 ElevatedButton.icon(
                   onPressed: () => _acceptOrder(docId),
                   icon: const Icon(

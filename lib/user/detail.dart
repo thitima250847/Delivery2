@@ -1,8 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart' hide CustomAppBarClipper;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package.cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class DetailPage extends StatefulWidget {
@@ -98,6 +99,9 @@ class _DetailPageState extends State<DetailPage> {
     final senderInfo =
         _packageData?['sender_info'] as Map<String, dynamic>? ?? {};
     final imageUrl = _packageData?['proof_image_url'] as String? ?? '';
+    // ดึงข้อมูลรายละเอียดสินค้า
+    final packageDescription =
+        _packageData?['package_description'] as String? ?? 'ไม่มีรายละเอียด';
 
     final shippingDate =
         _formatTimestamp(_packageData?['created_at'] as Timestamp?);
@@ -159,7 +163,14 @@ class _DetailPageState extends State<DetailPage> {
           Text('โทรศัพท์ : ${receiverInfo['phone'] ?? 'ไม่ระบุ'}',
               style: textStyleValue),
           const Divider(height: 24, thickness: 1),
-          const Text('สิ่งของทั้งหมด', style: textStyleValue),
+          // แสดงรายละเอียดสินค้าที่เพิ่มเข้ามา
+          const Text('ชื่อสินค้า:',
+              style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(packageDescription, style: textStyleValue),
           const SizedBox(height: 12),
           Center(
             child: ClipRRect(
@@ -200,7 +211,6 @@ class _DetailPageState extends State<DetailPage> {
           const SizedBox(height: 12),
           Text('จัดส่งวันที่ : $shippingDate', style: textStyleValue),
           const SizedBox(height: 4),
-          Text('ส่งถึงผู้รับ : $deliveryDate', style: textStyleValue),
         ],
       ),
     );

@@ -3,7 +3,6 @@ import 'package:delivery/user/history.dart';
 import 'package:delivery/user/home_user.dart';
 import 'package:delivery/user/more.dart' hide CustomAppBarClipper;
 import 'package:flutter/material.dart';
-import 'package.cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class DetailPage extends StatefulWidget {

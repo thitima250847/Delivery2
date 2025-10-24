@@ -18,7 +18,7 @@ class MoreOptionsPage extends StatelessWidget {
         child: Column(
           children: [
             // vvvv 2. ส่ง context เข้าไป vvvv
-            _buildOptionButton(context, label: 'แก้ไขข้อมูลส่วนตัว'),
+            _buildOptionButton(context, label: 'ข้อมูลส่วนตัว'),
             const SizedBox(height: 16),
             _buildOptionButton(context, label: 'เปลี่ยนรหัสผ่าน'),
             const SizedBox(height: 16),

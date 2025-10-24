@@ -306,7 +306,7 @@ class _SendItemPageState extends State<SendItemPage> {
                     controller: _descriptionController,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      hintText: 'รายละเอียดสินค้า :',
+                      hintText: 'ชื่อสินค้า :',
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(

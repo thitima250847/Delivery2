@@ -17,7 +17,6 @@ class CloudinaryConfig {
 }
 // ******************************************
 
-
 class RegisterRider extends StatefulWidget {
   const RegisterRider({super.key});
 
@@ -55,17 +54,21 @@ class _RegisterRiderState extends State<RegisterRider> {
   void _showSnack(String message, {bool success = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: success ? Colors.green : Colors.red),
+      SnackBar(
+          content: Text(message),
+          backgroundColor: success ? Colors.green : Colors.red),
     );
   }
 
   // Helpers สำหรับ Hash รหัสผ่าน (เหมือนเดิม)
   Uint8List _generateSalt([int length = 16]) {
     final r = Random.secure();
-    return Uint8List.fromList(List<int>.generate(length, (_) => r.nextInt(256)));
+    return Uint8List.fromList(
+        List<int>.generate(length, (_) => r.nextInt(256)));
   }
 
-  String _hashPassword(String password, Uint8List salt, {int iterations = 10000}) {
+  String _hashPassword(String password, Uint8List salt,
+      {int iterations = 10000}) {
     var mac = Hmac(sha256, salt);
     var bytes = mac.convert(utf8.encode(password)).bytes;
     for (var i = 1; i < iterations; i++) {
@@ -78,11 +81,14 @@ class _RegisterRiderState extends State<RegisterRider> {
   // เลือกรูป (เหมือนเดิม)
   Future<void> _pickImage() async {
     try {
-      final xFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
+      final xFile = await _picker.pickImage(
+          source: ImageSource.gallery, imageQuality: 75);
       if (xFile == null) return;
 
       final fileExtension = xFile.path.split('.').last.toLowerCase();
-      if (fileExtension != 'jpg' && fileExtension != 'jpeg' && fileExtension != 'png') {
+      if (fileExtension != 'jpg' &&
+          fileExtension != 'jpeg' &&
+          fileExtension != 'png') {
         _showSnack('ไม่รองรับไฟล์ประเภทนี้ (รองรับเฉพาะ jpg, jpeg, png)');
         return;
       }
@@ -102,10 +108,11 @@ class _RegisterRiderState extends State<RegisterRider> {
   Future<String?> _uploadProfileToCloudinary(Uint8List imageBytes) async {
     final url = Uri.parse(
         'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload');
-    
+
     final request = http.MultipartRequest('POST', url)
       ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
-      ..files.add(http.MultipartFile.fromBytes('file', imageBytes, filename: 'upload.jpg'));
+      ..files.add(http.MultipartFile.fromBytes('file', imageBytes,
+          filename: 'upload.jpg'));
 
     try {
       final response = await request.send();
@@ -185,7 +192,7 @@ class _RegisterRiderState extends State<RegisterRider> {
         'current_longitude': null,
         'password_hash': passwordHash,
         // เพิ่ม salt เข้าไปใน Firestore เพื่อใช้ตรวจสอบรหัสผ่านในอนาคต
-        'password_salt': base64Encode(salt), 
+        'password_salt': base64Encode(salt),
         'created_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -235,8 +242,12 @@ class _RegisterRiderState extends State<RegisterRider> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 8),
-              const Text('สมัครสมาชิก',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.black),
+              const Text(
+                'สมัครสมาชิก',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                    color: Colors.black),
               ),
               const SizedBox(height: 20),
               Padding(
@@ -248,15 +259,19 @@ class _RegisterRiderState extends State<RegisterRider> {
                         onPressed: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (_) => const RegisterUser()),
+                            MaterialPageRoute(
+                                builder: (_) => const RegisterUser()),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15)),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text('ผู้ใช้ระบบ', style: TextStyle(color: Colors.black, fontSize: 16)),
+                        child: const Text('ผู้ใช้ระบบ',
+                            style:
+                                TextStyle(color: Colors.black, fontSize: 16)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -271,7 +286,9 @@ class _RegisterRiderState extends State<RegisterRider> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                         ),
-                        child: const Text('ไรเดอร์', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        child: const Text('ไรเดอร์',
+                            style:
+                                TextStyle(color: Colors.white, fontSize: 16)),
                       ),
                     ),
                   ],
@@ -293,30 +310,56 @@ class _RegisterRiderState extends State<RegisterRider> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(60.0),
                     child: _imageBytes != null
-                        ? Image.memory(_imageBytes!, width: 120, height: 120, fit: BoxFit.cover)
+                        ? Image.memory(_imageBytes!,
+                            width: 120, height: 120, fit: BoxFit.cover)
                         : Container(
-                            width: 120, height: 120, color: Colors.grey[300],
-                            child: const Icon(Icons.person, size: 60, color: Colors.white),
+                            width: 120,
+                            height: 120,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.person,
+                                size: 60, color: Colors.white),
                           ),
                   ),
                   Container(
                     padding: const EdgeInsets.all(4.0),
-                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                        color: Colors.green, shape: BoxShape.circle),
                     child: const Icon(Icons.add, color: Colors.white, size: 20),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
-            _buildTextField(hintText: 'ชื่อ-สกุล', icon: Icons.person_outline, controller: _nameCtl, textInputAction: TextInputAction.next),
+            _buildTextField(
+                hintText: 'ชื่อ-สกุล',
+                icon: Icons.person_outline,
+                controller: _nameCtl,
+                textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'อีเมล', icon: Icons.mail_outline, controller: _emailCtl, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next),
+            _buildTextField(
+                hintText: 'อีเมล',
+                icon: Icons.mail_outline,
+                controller: _emailCtl,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'หมายเลขโทรศัพท์', icon: Icons.phone_outlined, controller: _phoneCtl, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next),
+            _buildTextField(
+                hintText: 'หมายเลขโทรศัพท์',
+                icon: Icons.phone_outlined,
+                controller: _phoneCtl,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildTextField(hintText: 'ทะเบียนรถ', icon: Icons.directions_car_outlined, controller: _plateCtl, textInputAction: TextInputAction.next),
+            _buildTextField(
+                hintText: 'ทะเบียนรถ',
+                icon: Icons.directions_car_outlined,
+                controller: _plateCtl,
+                textInputAction: TextInputAction.next),
             const SizedBox(height: 16),
-            _buildPasswordField(hintText: 'Password', icon: Icons.lock_outline, controller: _passwordCtl),
+            _buildPasswordField(
+                hintText: 'Password',
+                icon: Icons.lock_outline,
+                controller: _passwordCtl),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -324,12 +367,18 @@ class _RegisterRiderState extends State<RegisterRider> {
                 onPressed: _onRegisterPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: RegisterRider.kYellow,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.0)),
                   padding: const EdgeInsets.symmetric(vertical: 18.0),
                 ),
                 child: _submitting
-                    ? const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.black))
-                    : const Text('สมัครสมาชิก', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ? const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black))
+                    : const Text('สมัครสมาชิก',
+                        style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -353,22 +402,27 @@ class _RegisterRiderState extends State<RegisterRider> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: RegisterRider.kGrey),
-        prefixIcon: icon != null ? Icon(icon, color: RegisterRider.kGrey) : null,
+        prefixIcon:
+            icon != null ? Icon(icon, color: RegisterRider.kGrey) : null,
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
+          borderSide:
+              const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
+          borderSide:
+              const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
+          borderSide:
+              const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),
     );
   }
@@ -384,23 +438,29 @@ class _RegisterRiderState extends State<RegisterRider> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: RegisterRider.kGrey),
-        prefixIcon: icon != null ? Icon(icon, color: RegisterRider.kGrey) : null,
-        suffixIcon: const Icon(Icons.remove_red_eye_outlined, color: RegisterRider.kGrey),
+        prefixIcon:
+            icon != null ? Icon(icon, color: RegisterRider.kGrey) : null,
+        suffixIcon: const Icon(Icons.remove_red_eye_outlined,
+            color: RegisterRider.kGrey),
         filled: true,
         fillColor: const Color(0xFFEFEFEF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
+          borderSide:
+              const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
+          borderSide:
+              const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
-          borderSide: const BorderSide(color: RegisterRider.kYellow, width: 2.0),
+          borderSide:
+              const BorderSide(color: RegisterRider.kYellow, width: 2.0),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:delivery/rider/orderMaps.dart'; // เพิ่ม import นี้
 import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -411,8 +412,13 @@ class _HomePageRiderState extends State<HomePageRider> {
                 // ===========================================
                 ElevatedButton.icon(
                   onPressed: () {
-                    // ** เพิ่มโค้ดสำหรับเปิดแอปแผนที่ตรงนี้ **
-                    // ตัวอย่าง: Navigator.push(context, MaterialPageRoute(builder: (_) => MapScreen(...)));
+                    // *** แก้ไข: นำทางไปหน้า OrderMapsPage ***
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OrderMapsPage(packageId: docId),
+                      ),
+                    );
                   },
                   icon: const Icon(Icons.map_outlined, color: Colors.white),
                   label: const Text(

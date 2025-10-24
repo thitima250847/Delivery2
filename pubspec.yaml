@@ -28,7 +28,7 @@ dependencies:
   cloudinary_public: ^0.23.1
   
   # --- ส่วนที่ย้ายและเพิ่มเข้ามา ---
-  http: ^1.2.1      # ย้ายมาจาก dev_dependencies
+  http: ^1.5.0      # ย้ายมาจาก dev_dependencies
   http_parser: ^4.0.2 # ย้ายมาจาก dev_dependencies
   intl: ^0.19.0     # เพิ่มเข้ามาใหม่สำหรับจัดรูปแบบวันที่
 

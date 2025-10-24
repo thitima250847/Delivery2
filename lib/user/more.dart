@@ -20,7 +20,6 @@ class MoreOptionsPage extends StatelessWidget {
             // vvvv 2. ส่ง context เข้าไป vvvv
             _buildOptionButton(context, label: 'ข้อมูลส่วนตัว'),
             const SizedBox(height: 16),
-            _buildOptionButton(context, label: 'เปลี่ยนรหัสผ่าน'),
             const SizedBox(height: 16),
             _buildOptionButton(context, label: 'ออกจากระบบ'),
           ],
@@ -92,19 +91,11 @@ class MoreOptionsPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(15),
           onTap: () {
             // vvvv เพิ่ม Logic การนำทางที่นี่ vvvv
-            if (label == 'แก้ไขข้อมูลส่วนตัว') {
+            if (label == 'ข้อมูลส่วนตัว') {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const UserProfileScreen(),
-                ),
-              );
-              print('กดปุ่ม: $label');
-            } else if (label == 'เปลี่ยนรหัสผ่าน') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ChangePasswordScreen(),
                 ),
               );
               print('กดปุ่ม: $label');

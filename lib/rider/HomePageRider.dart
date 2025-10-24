@@ -1,4 +1,4 @@
-import 'package:delivery/rider/orderMaps.dart'; // เพิ่ม import นี้
+import 'package:delivery/rider/orderMaps.dart';
 import 'package:delivery/user/login.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -63,7 +63,9 @@ class _HomePageRiderState extends State<HomePageRider> {
     }
   }
 
-  // ฟังก์ชันสำหรับรับ Order (ฉบับแก้ไข)
+  // =================================================================
+  // === ฟังก์ชันสำหรับรับ Order (แก้ไขใหม่ทั้งหมดโดยใช้ Transaction) ===
+  // =================================================================
   Future<void> _acceptOrder(String packageId) async {
     try {
       final riderId = FirebaseAuth.instance.currentUser?.uid;
@@ -71,39 +73,56 @@ class _HomePageRiderState extends State<HomePageRider> {
         throw Exception("ไม่สามารถระบุตัวตนไรเดอร์ได้");
       }
 
-      // 1. ตรวจสอบว่า Rider มีงานที่กำลังทำอยู่หรือไม่
-      final ongoingPackages = await FirebaseFirestore.instance
+      // 1. ตรวจสอบเบื้องต้นว่าไรเดอร์คนนี้มีงานอื่นค้างอยู่หรือไม่ (ทำนอก Transaction ได้)
+      final ongoingPackagesCheck = await FirebaseFirestore.instance
           .collection('packages')
           .where('rider_id', isEqualTo: riderId)
           .where('status', whereIn: ['accepted', 'on_delivery'])
           .limit(1)
           .get();
 
-      if (ongoingPackages.docs.isNotEmpty) {
+      if (ongoingPackagesCheck.docs.isNotEmpty) {
         throw Exception(
           "คุณมีงานที่กำลังดำเนินการอยู่แล้ว กรุณาส่งงานปัจจุบันให้เสร็จก่อนรับงานใหม่",
         );
       }
 
-      // 2. änner เพิ่ม: ดึงข้อมูลป้ายทะเบียนของไรเดอร์
+      // 2. ดึงข้อมูลป้ายทะเบียน (ทำนอก Transaction ได้)
       final riderDoc =
           await FirebaseFirestore.instance.collection('riders').doc(riderId).get();
       if (!riderDoc.exists) {
         throw Exception('ไม่พบโปรไฟล์ของไรเดอร์');
       }
       final riderPlate = riderDoc.data()?['license_plate'] ?? 'N/A';
-      // ------------------------------------
 
-      // 3. änner เพิ่ม: อัปเดต 'rider_plate' ลงใน package
-      await FirebaseFirestore.instance
-          .collection('packages')
-          .doc(packageId)
-          .update({
-        'status': 'accepted',
-        'rider_id': riderId,
-        'rider_plate': riderPlate, // <-- บันทึกป้ายทะเบียนตรงนี้
+      // 3. เริ่ม Transaction เพื่อรับงานอย่างปลอดภัย
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final packageRef =
+            FirebaseFirestore.instance.collection('packages').doc(packageId);
+        
+        // อ่านข้อมูลล่าสุดของออเดอร์ภายใน Transaction
+        final packageSnapshot = await transaction.get(packageRef);
+
+        if (!packageSnapshot.exists) {
+          throw Exception("ไม่พบออเดอร์นี้ในระบบ อาจถูกลบไปแล้ว");
+        }
+
+        // *** จุดตรวจสอบที่สำคัญที่สุด ***
+        // เช็คว่าสถานะยังเป็น 'pending' หรือไม่
+        if (packageSnapshot.data()?['status'] != 'pending') {
+          // ถ้าไม่ใช่ แสดงว่ามีคนอื่นตัดหน้าไปแล้ว
+          throw Exception("ออเดอร์นี้ถูกรับไปแล้ว");
+        }
+
+        // ถ้ายังเป็น 'pending' อยู่ ให้อัปเดตข้อมูลภายใน Transaction นี้เท่านั้น
+        transaction.update(packageRef, {
+          'status': 'accepted',
+          'rider_id': riderId,
+          'rider_plate': riderPlate,
+        });
       });
 
+      // 4. ถ้า Transaction สำเร็จ (ไม่เกิด Exception) แสดงว่ารับงานได้
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -119,6 +138,7 @@ class _HomePageRiderState extends State<HomePageRider> {
         );
       }
     } catch (e) {
+      // Catch จะดักจับ Exception ทั้งหมด รวมถึง "ออเดอร์นี้ถูกรับไปแล้ว"
       if (mounted) {
         final errorMessage = e.toString().contains("Exception:")
             ? e.toString().replaceFirst("Exception: ", "")
@@ -130,6 +150,7 @@ class _HomePageRiderState extends State<HomePageRider> {
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -407,12 +428,8 @@ class _HomePageRiderState extends State<HomePageRider> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // ===========================================
-                // === ปุ่มดูแผนที่ (เพิ่มใหม่) ===
-                // ===========================================
                 ElevatedButton.icon(
                   onPressed: () {
-                    // *** แก้ไข: นำทางไปหน้า OrderMapsPage ***
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -429,7 +446,7 @@ class _HomePageRiderState extends State<HomePageRider> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green, // สีเขียว
+                    backgroundColor: Colors.green,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10.0),
@@ -440,10 +457,7 @@ class _HomePageRiderState extends State<HomePageRider> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8), // เพิ่มระยะห่างระหว่างปุ่ม
-                // ===========================================
-                // === ปุ่มรับ Order (ของเดิม) ===
-                // ===========================================
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: () => _acceptOrder(docId),
                   icon: const Icon(
@@ -537,12 +551,11 @@ class _HomePageRiderState extends State<HomePageRider> {
               label: 'ออกจากระบบ',
               color: kYellow,
               onTap: () {
-                // ออกจากระบบ -> กลับไปหน้า Login และล้างเส้นทางเก่า
-                FirebaseAuth.instance.signOut(); // ต้อง signOut
+                FirebaseAuth.instance.signOut();
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const LoginPage(), // กลับไปหน้า Login
+                    builder: (_) => const LoginPage(),
                   ),
                   (route) => false,
                 );
